@@ -75,3 +75,46 @@ test('draft paths stay inside _drafts', t => {
   assert.throws(() => core.readPost(root, '../_posts/post.md', 'draft'), /越界/);
   assert.throws(() => core.listPosts(root, 'invalid'), /无效的文章类型/);
 });
+
+test('lists, creates, edits and deletes independent Hexo pages', t => {
+  const root = fixture(t);
+  const source = path.join(root, 'source');
+  fs.mkdirSync(path.join(source, 'about'));
+  fs.writeFileSync(path.join(source, 'about', 'index.md'), '---\ntitle: 关于\ntype: about\n---\n\n介绍');
+  fs.writeFileSync(path.join(source, 'contact.md'), '---\ntitle: 联系\n---\n\n邮件');
+  fs.writeFileSync(path.join(source, '_posts', 'hidden.md'), '---\ntitle: 隐藏\n---\n');
+  assert.deepEqual(core.listPosts(root, 'page').map(page => page.path).sort(), ['about/index.md', 'contact.md']);
+  const created = core.createPost(root, 'My Page', '2026-10-22 12:00:00', 'page');
+  assert.equal(created.path, 'my-page/index.md');
+  assert.equal(core.createPost(root, 'My Page', undefined, 'page').path, 'my-page-2/index.md');
+  const current = core.readPost(root, 'about/index.md', 'page');
+  const saved = core.savePost(root, current.path, current.content + '更多', current.modified, { title: '关于我' }, 'page');
+  assert.match(saved.content, /type: about/);
+  assert.equal(saved.meta.title, '关于我');
+  assert.throws(() => core.savePost(root, current.path, 'overwrite', current.modified, {}, 'page'), /其他程序修改/);
+  core.deletePost(root, created.path, 'page');
+  assert.equal(fs.existsSync(path.join(source, 'my-page')), false);
+  core.deletePost(root, 'about/index.md', 'page');
+  assert.equal(fs.existsSync(path.join(source, 'about')), false);
+});
+
+test('page paths cannot reach reserved folders or symbolic links', t => {
+  const root = fixture(t);
+  const source = path.join(root, 'source');
+  assert.throws(() => core.readPost(root, '_posts/hidden.md', 'page'), /内部目录/);
+  assert.throws(() => core.safeArticlePath(root, '../_config.yml', 'page', true), /无效|越界/);
+  fs.symlinkSync(path.join(source, '_posts'), path.join(source, 'alias'));
+  assert.deepEqual(core.listPosts(root, 'page'), []);
+  assert.throws(() => core.readPost(root, 'alias/hidden.md', 'page'), /符号链接/);
+});
+
+test('lists site and theme override config files safely', t => {
+  const root = fixture(t);
+  fs.writeFileSync(path.join(root, '_config.landscape.yml'), 'menu: {}\n');
+  fs.writeFileSync(path.join(root, '_config.other.json'), '{}\n');
+  fs.symlinkSync(path.join(root, '_config.yml'), path.join(root, '_config.link.yml'));
+  assert.deepEqual(core.listThemeOverrides(root), ['_config.landscape.yml', '_config.other.json']);
+  assert.equal(core.configPath(root, 'override:_config.landscape.yml'), path.join(root, '_config.landscape.yml'));
+  assert.throws(() => core.configPath(root, 'override:_config.link.yml'), /不存在/);
+  assert.throws(() => core.configPath(root, 'override:../private.yml'), /无效/);
+});

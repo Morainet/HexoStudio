@@ -186,13 +186,16 @@ async function handle(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/config') {
       const scope = url.searchParams.get('scope') || 'site';
       const file = core.configPath(root, scope);
-      return send(res, 200, { scope, content: fs.readFileSync(file, 'utf8'), modified: fs.statSync(file).mtime.toISOString(), themes: core.listThemes(root) });
+      return send(res, 200, { scope, content: fs.readFileSync(file, 'utf8'), modified: fs.statSync(file).mtime.toISOString(), themes: core.listThemes(root), overrides: core.listThemeOverrides(root) });
     }
     if (req.method === 'PUT' && url.pathname === '/api/config') {
       const data = await body(req);
       if (typeof data.content !== 'string' || Buffer.byteLength(data.content) > 1_000_000) throw new Error('配置内容无效或超过 1 MB');
       const file = core.configPath(root, data.scope);
       if (data.modified && data.modified !== fs.statSync(file).mtime.toISOString()) throw Object.assign(new Error('配置文件已被其他程序修改，请重新加载'), { status: 409 });
+      if (file.endsWith('.json')) {
+        try { JSON.parse(data.content); } catch { throw new Error('JSON 配置语法无效'); }
+      }
       fs.writeFileSync(file, data.content);
       return send(res, 200, { modified: fs.statSync(file).mtime.toISOString() });
     }

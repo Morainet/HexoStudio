@@ -1,4 +1,4 @@
-const state = { csrf: null, root: null, site: null, connection: { type: 'local' }, git: null, gitMessage: '', posts: [], drafts: [], contentKind: 'post', view: 'dashboard', current: null, config: null, search: '', filter: 'all', busy: false, saving: false, editorDirty: false, editorBuffer: null, editorBaseModified: null, metadataValues: {}, metadataBase: {}, previewVersion: 0 };
+const state = { csrf: null, root: null, site: null, connection: { type: 'local' }, git: null, gitMessage: '', posts: [], drafts: [], pages: [], contentKind: 'post', view: 'dashboard', current: null, config: null, configDirty: false, search: '', filter: 'all', busy: false, saving: false, editorDirty: false, editorBuffer: null, editorBaseModified: null, metadataValues: {}, metadataBase: {}, previewVersion: 0 };
 const $ = selector => document.querySelector(selector);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const endpoint = (name, params = {}) => `/api/${name}${Object.keys(params).length ? '?' + new URLSearchParams(params) : ''}`;
@@ -44,7 +44,7 @@ function setEditorDirty() {
   if (document.activeElement === $('#editor')) rememberEditorSelection();
   document.querySelectorAll('[data-meta]').forEach(input => { state.metadataValues[input.dataset.meta] = input.value; });
   state.editorDirty = state.editorBuffer !== state.current.content || Object.keys(metadataEdits()).length > 0;
-  $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${state.current.kind === 'draft' ? '草稿' : '文章'}`;
+  $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${state.current.kind === 'draft' ? '草稿' : state.current.kind === 'page' ? '页面' : '文章'}`;
   $('#editor-status').textContent = state.editorDirty ? '未保存 · 已备份本机草稿' : '所有更改已保存';
   clearTimeout(state.draftTimer);
   if (state.editorDirty) state.draftTimer = setTimeout(saveDraft, 350); else clearDraft(state.current.path);
@@ -64,8 +64,9 @@ function updateShell() {
   $('#project-name').textContent = state.root ? (state.site?.title || fullName(state.root)) : '尚未连接项目';
   $('#project-path').textContent = state.connection?.type === 'remote' ? `${state.connection.provider} · ${state.connection.repository}` : state.root || '请选择 Hexo 目录';
   $('#top-new').disabled = !state.root;
+  $('#top-new').textContent = state.view === 'pages' ? '＋ 新建页面' : '＋ 新建文章';
   document.querySelectorAll('.nav button').forEach(button => button.classList.toggle('active', button.dataset.view === state.view));
-  const title = { dashboard: '概览', posts: '文章管理', editor: state.current?.kind === 'draft' ? '编辑草稿' : '编辑文章', config: '站点配置', git: 'Git 仓库', deploy: '构建与部署' }[state.view];
+  const title = { dashboard: '概览', posts: '文章管理', pages: '页面管理', editor: state.current?.kind === 'draft' ? '编辑草稿' : state.current?.kind === 'page' ? '编辑页面' : '编辑文章', config: '站点配置', git: 'Git 仓库', deploy: '构建与部署' }[state.view];
   $('#breadcrumb').textContent = `工作空间 / ${title}`;
 }
 function pageHead(kicker, title, subtitle, actions = '') { return `<div class="page-head"><div><div class="eyebrow">${kicker}</div><h1>${title}</h1><p>${subtitle}</p></div><div class="head-actions">${actions}</div></div>`; }
@@ -79,8 +80,8 @@ function dashboard() {
   const recent = state.posts.slice(0, 5);
   $('#view').innerHTML = `${pageHead('GOOD DAY', '欢迎回到创作空间', state.site?.theme ? `正在管理 ${escapeHTML(state.site.title || 'Hexo 博客')} · ${escapeHTML(state.site.theme)} 主题` : '在这里整理你的想法，轻松管理 Hexo 博客。')}
     <section class="hero"><div><div class="eyebrow" style="color:#d8d9ff">YOUR WRITING SPACE</div><h2>下一篇好文章，从这里开始。</h2><p>写作、整理、构建与发布，都在一个清爽的工作台里完成。</p><button id="hero-new">开始写作 ↗</button></div><div class="hero-art">✦</div></section>
-    <div class="stats"><div class="stat-card"><span class="stat-icon">▤</span><div><small>文章总数</small><strong>${count}</strong></div></div><div class="stat-card"><span class="stat-icon">◇</span><div><small>草稿数量</small><strong>${state.drafts.length}</strong></div></div><div class="stat-card"><span class="stat-icon">✎</span><div><small>最近更新</small><strong style="font-size:17px">${count ? date(state.posts[0].modified) : '暂无'}</strong></div></div></div>
-    <div class="columns"><section class="panel"><div class="panel-title"><h3>最近的文章</h3><button data-view="posts">查看全部 →</button></div><div class="post-list">${recent.length ? recent.map(post => row(post, true)).join('') : '<div class="empty"><div class="symbol">✎</div>还没有文章，创建第一篇吧。</div>'}</div></section><section class="panel"><div class="panel-title"><h3>快捷操作</h3></div><div class="quick-actions"><button class="quick-action" id="quick-new"><span class="q-icon">＋</span><span><strong>新建草稿</strong><small>先写好再发布</small></span></button><button class="quick-action" data-view="config"><span class="q-icon">⚙</span><span><strong>编辑站点配置</strong><small>调整 Hexo 与主题设置</small></span></button><button class="quick-action" data-view="deploy"><span class="q-icon">↗</span><span><strong>构建与部署</strong><small>生成静态页面并发布</small></span></button></div><div class="hint-card">草稿保存在 Hexo 的 source/_drafts，发布时移入 source/_posts。</div></section></div>`;
+    <div class="stats"><div class="stat-card"><span class="stat-icon">▤</span><div><small>文章总数</small><strong>${count}</strong></div></div><div class="stat-card"><span class="stat-icon">◇</span><div><small>页面总数</small><strong>${state.pages.length}</strong></div></div><div class="stat-card"><span class="stat-icon">✎</span><div><small>草稿数量</small><strong>${state.drafts.length}</strong></div></div></div>
+    <div class="columns"><section class="panel"><div class="panel-title"><h3>最近的文章</h3><button data-view="posts">查看全部 →</button></div><div class="post-list">${recent.length ? recent.map(post => row(post, true)).join('') : '<div class="empty"><div class="symbol">✎</div>还没有文章，创建第一篇吧。</div>'}</div></section><section class="panel"><div class="panel-title"><h3>快捷操作</h3></div><div class="quick-actions"><button class="quick-action" id="quick-new"><span class="q-icon">＋</span><span><strong>新建草稿</strong><small>先写好再发布</small></span></button><button class="quick-action" data-view="pages"><span class="q-icon">◇</span><span><strong>管理页面</strong><small>编辑关于、友链等独立页面</small></span></button><button class="quick-action" data-view="config"><span class="q-icon">⚙</span><span><strong>编辑站点配置</strong><small>调整 Hexo 与主题设置</small></span></button></div><div class="hint-card">草稿保存在 Hexo 的 source/_drafts，发布时移入 source/_posts。</div></section></div>`;
   $('#hero-new').onclick = () => showNewPost('draft');
   $('#quick-new').onclick = () => showNewPost('draft');
 }
@@ -99,12 +100,22 @@ function postsPage() {
   $('#search').oninput = event => { state.search = event.target.value; const start = event.target.selectionStart; postsPage(); const input = $('#search'); input.focus(); input.setSelectionRange(start, start); };
   $('#filter').onchange = event => { state.filter = event.target.value; postsPage(); };
 }
+function pagesPage() {
+  const query = state.search.toLowerCase();
+  const shown = state.pages.filter(page => `${page.title} ${page.path}`.toLowerCase().includes(query));
+  $('#view').innerHTML = `${pageHead('INDEPENDENT PAGES', '页面管理', `共 ${state.pages.length} 个独立页面，位于 Hexo 的 source 目录。`, '<button id="new-page" class="primary">＋ 新建页面</button>')}
+    <div class="toolbar"><label class="search"><span>⌕</span><input id="page-search" type="search" placeholder="搜索页面标题或路径" value="${escapeHTML(state.search)}"></label></div>
+    <section class="panel table-panel"><div class="table-head page-table"><span>页面</span><span>文件路径</span><span>最近修改</span><span>操作</span></div>${shown.length ? shown.map(page => `<div class="article-row page-table"><div><span class="title">${escapeHTML(page.title)}</span><div class="excerpt">${escapeHTML(page.excerpt || '独立页面')}</div></div><span class="muted page-path">${escapeHTML(page.path)}</span><span class="muted">${escapeHTML(date(page.modified))}</span><div class="row-actions"><button data-kind="page" data-open="${escapeHTML(page.path)}">编辑</button><button data-kind="page" data-delete="${escapeHTML(page.path)}">删除</button></div></div>`).join('') : '<div class="empty"><div class="symbol">◇</div>还没有找到页面</div>'}</section>`;
+  $('#new-page').onclick = () => showNewPost('page');
+  $('#page-search').oninput = event => { state.search = event.target.value; const start = event.target.selectionStart; pagesPage(); const input = $('#page-search'); input.focus(); input.setSelectionRange(start, start); };
+}
 function editorPage() {
   const post = state.current;
   if (!post) return navigate('posts');
-  $('#view').innerHTML = `${pageHead(post.kind === 'draft' ? 'DRAFT EDITOR' : 'EDITOR', escapeHTML(state.metadataValues.title || fullName(post.path)), `${post.kind === 'draft' ? '草稿 · ' : ''}${escapeHTML(post.path)}`, `<span id="editor-status" class="editor-status">所有更改已保存</span><button id="back-posts" class="secondary">返回列表</button>${post.kind === 'draft' ? '<button id="publish-draft" class="secondary">发布草稿</button>' : ''}<button id="save-post" class="primary">保存${post.kind === 'draft' ? '草稿' : '文章'}</button>`)}
-    <div class="editor-layout"><section class="panel editor-panel"><div class="editor-tabs"><button class="active" data-editor-tab="write">Markdown</button><button data-editor-tab="preview">实时预览</button></div><div class="editor-toolbar" aria-label="编辑工具"><button type="button" data-insert="bold" title="加粗">B</button><button type="button" data-insert="italic" title="斜体"><i>I</i></button><button type="button" data-insert="heading" title="二级标题">H₂</button><button type="button" data-insert="link" title="链接">⌁</button><span class="toolbar-separator"></span><button type="button" id="upload-image" title="上传图片到博客">▧ 上传图片</button><button type="button" id="media-toggle" title="选择已上传的图片">图片库</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><small>可粘贴或拖入图片</small></div><div id="media-library" class="media-library hidden"><div class="media-head"><strong>已上传图片</strong><span>点击图片插入文章</span></div><div id="media-list" class="media-grid">加载中…</div></div><textarea id="editor" class="editor-textarea" spellcheck="false" aria-label="Markdown 文章内容"></textarea><div id="preview" class="preview hidden">正在生成预览…</div></section>
-    <aside class="panel meta-panel"><h3>文章信息</h3><label for="meta-title">标题</label><input id="meta-title" data-meta="title" value="${escapeHTML(state.metadataValues.title)}" maxlength="300"><label for="meta-date">日期</label><input id="meta-date" data-meta="date" value="${escapeHTML(state.metadataValues.date)}" placeholder="YYYY-MM-DD HH:mm:ss"><label for="meta-tags">标签</label><input id="meta-tags" data-meta="tags" value="${escapeHTML(state.metadataValues.tags)}" placeholder="用逗号分隔"><label for="meta-categories">分类</label><input id="meta-categories" data-meta="categories" value="${escapeHTML(state.metadataValues.categories)}" placeholder="用逗号分隔"><label>文件路径</label><div class="meta-value">${escapeHTML(post.path)}</div><div class="hint-card">修改文章信息时只更新对应字段；其他主题自定义字段保持原样。也可以直接编辑文首的 YAML。</div></aside></div>`;
+  const label = post.kind === 'draft' ? '草稿' : post.kind === 'page' ? '页面' : '文章';
+  $('#view').innerHTML = `${pageHead(post.kind === 'draft' ? 'DRAFT EDITOR' : post.kind === 'page' ? 'PAGE EDITOR' : 'EDITOR', escapeHTML(state.metadataValues.title || fullName(post.path)), `${label} · ${escapeHTML(post.path)}`, `<span id="editor-status" class="editor-status">所有更改已保存</span><button id="back-posts" class="secondary">返回列表</button>${post.kind === 'draft' ? '<button id="publish-draft" class="secondary">发布草稿</button>' : ''}<button id="save-post" class="primary">保存${label}</button>`)}
+    <div class="editor-layout"><section class="panel editor-panel"><div class="editor-tabs"><button class="active" data-editor-tab="write">Markdown</button><button data-editor-tab="preview">实时预览</button></div><div class="editor-toolbar" aria-label="编辑工具"><button type="button" data-insert="bold" title="加粗">B</button><button type="button" data-insert="italic" title="斜体"><i>I</i></button><button type="button" data-insert="heading" title="二级标题">H₂</button><button type="button" data-insert="link" title="链接">⌁</button><span class="toolbar-separator"></span><button type="button" id="upload-image" title="上传图片到博客">▧ 上传图片</button><button type="button" id="media-toggle" title="选择已上传的图片">图片库</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><small>可粘贴或拖入图片</small></div><div id="media-library" class="media-library hidden"><div class="media-head"><strong>已上传图片</strong><span>点击图片插入${label}</span></div><div id="media-list" class="media-grid">加载中…</div></div><textarea id="editor" class="editor-textarea" spellcheck="false" aria-label="Markdown ${label}内容"></textarea><div id="preview" class="preview hidden">正在生成预览…</div></section>
+    <aside class="panel meta-panel"><h3>${label}信息</h3><label for="meta-title">标题</label><input id="meta-title" data-meta="title" value="${escapeHTML(state.metadataValues.title)}" maxlength="300"><label for="meta-date">日期</label><input id="meta-date" data-meta="date" value="${escapeHTML(state.metadataValues.date)}" placeholder="YYYY-MM-DD HH:mm:ss">${post.kind === 'page' ? '' : `<label for="meta-tags">标签</label><input id="meta-tags" data-meta="tags" value="${escapeHTML(state.metadataValues.tags)}" placeholder="用逗号分隔"><label for="meta-categories">分类</label><input id="meta-categories" data-meta="categories" value="${escapeHTML(state.metadataValues.categories)}" placeholder="用逗号分隔">`}<label>文件路径</label><div class="meta-value">${escapeHTML(post.path)}</div><div class="hint-card">修改${label}信息时只更新对应字段；主题自定义字段保持原样。也可以直接编辑文首的 YAML。</div></aside></div>`;
   $('#editor').value = state.editorBuffer ?? post.content;
   $('#editor').oninput = setEditorDirty;
   $('#editor').onselect = rememberEditorSelection;
@@ -118,7 +129,7 @@ function editorPage() {
   $('#media-toggle').onclick = toggleMediaLibrary;
   document.querySelectorAll('[data-meta]').forEach(input => input.oninput = setEditorDirty);
   document.querySelectorAll('[data-insert]').forEach(button => button.onclick = () => insertMarkup(button.dataset.insert));
-  $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${post.kind === 'draft' ? '草稿' : '文章'}`;
+  $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${label}`;
   $('#editor-status').textContent = state.editorDirty ? '未保存 · 已备份本机草稿' : '所有更改已保存';
   schedulePreview(0);
   document.querySelectorAll('[data-editor-tab]').forEach(button => button.onclick = () => {
@@ -128,7 +139,7 @@ function editorPage() {
     $('#preview').classList.toggle('hidden', !preview);
     if (preview) schedulePreview(0);
   });
-  $('#back-posts').onclick = () => navigate('posts');
+  $('#back-posts').onclick = () => navigate(post.kind === 'page' ? 'pages' : 'posts');
   $('#save-post').onclick = savePost;
   if (post.kind === 'draft') $('#publish-draft').onclick = () => requestPublish(post.path);
 }
@@ -202,12 +213,15 @@ async function uploadImages(files) {
 function configPage() {
   if (!state.config) return;
   const config = state.config;
-  const options = ['<option value="site">Hexo 站点配置</option>', ...config.themes.map(theme => `<option value="theme:${escapeHTML(theme)}">${escapeHTML(theme)} 主题配置${theme === state.site?.theme ? '（当前）' : ''}</option>`)].join('');
-  $('#view').innerHTML = `${pageHead('SITE SETTINGS', '站点配置', '直接查看并编辑 Hexo 的 YAML 配置文件。', '<button id="save-config" class="primary">保存配置</button>')}
-    <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="YAML 配置"></textarea></section><div class="hint-card">保存前请确认 YAML 语法正确。HexoStudio 会保留原有注释和字段，不会重新格式化配置。</div>`;
+  const format = config.scope.endsWith('.json') ? 'JSON' : 'YAML';
+  const options = ['<option value="site">Hexo 站点配置 · _config.yml</option>', ...(config.overrides || []).map(filename => `<option value="override:${escapeHTML(filename)}">${escapeHTML(filename)} · 主题覆盖配置</option>`), ...config.themes.map(theme => `<option value="theme:${escapeHTML(theme)}">${escapeHTML(theme)} · 主题目录配置${theme === state.site?.theme ? '（当前）' : ''}</option>`)].join('');
+  $('#view').innerHTML = `${pageHead('SITE SETTINGS', '站点配置', '直接查看并编辑 Hexo 与主题的配置文件。', '<button id="save-config" class="primary">保存配置</button>')}
+    <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} 配置"></textarea></section><div class="hint-card">保存前请确认 ${format} 语法正确。HexoStudio 会保留原有注释和字段，不会重新格式化配置。</div>`;
   $('#scope').value = config.scope;
-  $('#scope').onchange = event => loadConfig(event.target.value);
+  $('#scope').onchange = async event => { const selected = event.target.value; if (!await loadConfig(selected)) event.target.value = config.scope; };
   $('#config-editor').value = config.content;
+  $('#config-editor').oninput = () => { state.configDirty = $('#config-editor').value !== state.config.content; $('#save-config').textContent = state.configDirty ? '保存配置 ●' : '保存配置'; };
+  $('#save-config').textContent = state.configDirty ? '保存配置 ●' : '保存配置';
   $('#save-config').onclick = saveConfig;
 }
 function deployPage() {
@@ -276,7 +290,7 @@ async function gitSync(action) {
   } catch (error) { toast(error.message); }
   finally { state.busy = false; for (const button of ['#git-fetch', '#git-pull', '#git-push']) if ($(button) && state.git?.remote) $(button).disabled = false; }
 }
-function render() { updateShell(); if (!state.root) return onboarding(); ({ dashboard, posts: postsPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
+function render() { updateShell(); if (!state.root) return onboarding(); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
 function connectionForm() {
   return `<div class="connection-tabs"><button type="button" data-connect-mode="local" class="active">本机目录</button><button type="button" data-connect-mode="remote">GitHub / GitLab</button></div>
     <div id="local-fields" class="connection-fields"><p>输入包含 <code>_config.yml</code> 与 <code>source/_posts</code> 的项目目录。</p><label for="root-input">Hexo 项目目录</label><input id="root-input" placeholder="/Users/name/blog 或 C:\\Users\\name\\blog"><div class="connect-actions"><button id="connect-project" class="primary">连接本机项目</button><button id="browse-project" class="secondary hidden">浏览目录…</button></div></div>
@@ -300,17 +314,17 @@ function onboarding() {
 }
 async function connectProject() {
   const path = $('#root-input')?.value.trim();
-  if (!canLeaveEditor()) return;
-  try { const result = await api('project', { method: 'POST', data: { path } }); state.root = result.root; state.site = result.site; state.connection = { type: 'local' }; state.git = null; state.config = null; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all'; await refreshPosts(); closeModal(); navigate('dashboard'); toast('项目已连接'); }
+  if (!canLeaveEditor() || !canLeaveConfig()) return;
+  try { const result = await api('project', { method: 'POST', data: { path } }); state.root = result.root; state.site = result.site; state.connection = { type: 'local' }; state.git = null; state.config = null; state.configDirty = false; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all'; await refreshPosts(); closeModal(); navigate('dashboard'); toast('项目已连接'); }
   catch (error) { toast(error.message); }
 }
 async function connectRemote() {
-  if (!canLeaveEditor()) return;
+  if (!canLeaveEditor() || !canLeaveConfig()) return;
   const button = $('#connect-remote'); button.disabled = true; button.textContent = '正在连接…';
   try {
     const data = { provider: $('#remote-provider').value, repository: $('#remote-repo').value.trim(), token: $('#remote-token').value.trim(), branch: $('#remote-branch').value.trim(), blogPath: $('#remote-path').value.trim() };
     const result = await api('remote/connect', { method: 'POST', data });
-    state.root = result.root; state.site = result.site; state.connection = result.connection; state.git = null; state.config = null; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all';
+    state.root = result.root; state.site = result.site; state.connection = result.connection; state.git = null; state.config = null; state.configDirty = false; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all';
     await refreshPosts(); closeModal(); navigate('dashboard'); toast('远端仓库已连接');
   } catch (error) { toast(error.message); }
   finally { if (button.isConnected) { button.disabled = false; button.textContent = '连接远端仓库'; } }
@@ -318,15 +332,15 @@ async function connectRemote() {
 function showProjectModal() { modal(`<h2 id="modal-title">切换 Hexo 项目</h2>${connectionForm()}<div class="actions"><button class="secondary" id="cancel-modal">取消</button></div>`); bindConnectionForm(); $('#cancel-modal').onclick = closeModal; }
 async function chooseDirectory() { const selected = await window.hexoStudio?.selectDirectory(); if (selected) $('#root-input').value = selected; }
 function localDateTime() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`; }
-function showNewPost(kind = 'post') { if (!state.root || (state.view === 'editor' && !canLeaveEditor())) return; state.newKind = kind === 'draft' ? 'draft' : 'post'; const label = state.newKind === 'draft' ? '草稿' : '文章'; const folder = state.newKind === 'draft' ? '_drafts' : '_posts'; modal(`<h2 id="modal-title">新建${label}</h2><p>给${label}取个名字，HexoStudio 会在 source/${folder} 中创建 Markdown 文件。</p><label for="new-title">${label}标题</label><input id="new-title" placeholder="写下这篇${label}的标题"><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="primary" id="create-post">创建并编辑</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
-async function createPost() { try { const kind = state.newKind; const post = await api('posts', { method: 'POST', data: { title: $('#new-title').value, localDate: localDateTime(), kind } }); closeModal(); await refreshPosts(); await openPost(post.path, kind, true); toast(kind === 'draft' ? '草稿已创建' : '文章已创建'); } catch (error) { toast(error.message); } }
-async function refreshPosts() { const [posts, drafts] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } })]); state.posts = posts.posts; state.drafts = drafts.posts; }
+function showNewPost(kind = 'post') { if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? '草稿' : state.newKind === 'page' ? '页面' : '文章'; const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? 'source/页面路径/index.md' : 'source/_posts'; modal(`<h2 id="modal-title">新建${label}</h2><p>给${label}取个名字，HexoStudio 会在 ${folder} 中创建 Markdown 文件。</p><label for="new-title">${label}标题</label><input id="new-title" placeholder="写下${label}标题"><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="primary" id="create-post">创建并编辑</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
+async function createPost() { try { const kind = state.newKind; const post = await api('posts', { method: 'POST', data: { title: $('#new-title').value, localDate: localDateTime(), kind } }); closeModal(); await refreshPosts(); await openPost(post.path, kind, true); toast(kind === 'draft' ? '草稿已创建' : kind === 'page' ? '页面已创建' : '文章已创建'); } catch (error) { toast(error.message); } }
+async function refreshPosts() { const [posts, drafts, pages] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } }), api('posts', { params: { kind: 'page' } })]); state.posts = posts.posts; state.drafts = drafts.posts; state.pages = pages.posts; }
 async function openPost(path, kind = 'post', skipGuard = false) {
   if (!skipGuard && state.view === 'editor' && !canLeaveEditor()) return;
   try {
     const post = await api('post', { params: { path, kind } });
     state.current = post;
-    state.contentKind = kind;
+    if (kind !== 'page') state.contentKind = kind;
     state.editorBuffer = post.content;
     state.editorSelection = { start: post.content.length, end: post.content.length };
     state.editorBaseModified = post.modified;
@@ -370,7 +384,7 @@ async function savePost() {
     $('#editor').scrollTop = scroll;
     $('#editor').setSelectionRange(Math.min(cursor, updated.content.length), Math.min(cursor, updated.content.length));
     if (previewActive) document.querySelector('[data-editor-tab="preview"]').click();
-    toast(refreshError ? `已保存，列表刷新失败：${refreshError.message}` : updated.kind === 'draft' ? '草稿已保存' : '文章已保存');
+    toast(refreshError ? `已保存，列表刷新失败：${refreshError.message}` : updated.kind === 'draft' ? '草稿已保存' : updated.kind === 'page' ? '页面已保存' : '文章已保存');
     return true;
   } catch (error) { toast(error.message); return false; }
   finally { state.saving = false; if ($('#editor') === editor) { editor.readOnly = false; $('#save-post').disabled = false; document.querySelectorAll('[data-meta]').forEach(input => input.disabled = false); } }
@@ -400,9 +414,27 @@ async function requestPublish(path) {
     } catch (error) { toast(error.message); $('#confirm-publish').disabled = false; }
   };
 }
-function confirmDelete(path, kind = 'post') { const label = kind === 'draft' ? '草稿' : '文章'; modal(`<h2 id="modal-title">删除${label}？</h2><p>这会从 Hexo 源码目录删除 <strong>${escapeHTML(path)}</strong>。此操作无法在后台撤销。</p><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="secondary danger" id="confirm-delete">删除${label}</button></div>`); $('#cancel-modal').onclick = closeModal; $('#confirm-delete').onclick = async () => { try { await api('post', { method: 'DELETE', params: { path, kind } }); clearDraft(path, kind); closeModal(); await refreshPosts(); render(); toast(`${label}已删除`); } catch (error) { toast(error.message); } }; }
-async function loadConfig(scope = 'site') { try { state.config = await api('config', { params: { scope } }); navigate('config'); } catch (error) { toast(error.message); } }
-async function saveConfig() { try { const result = await api('config', { method: 'PUT', data: { scope: state.config.scope, content: $('#config-editor').value, modified: state.config.modified } }); state.config.content = $('#config-editor').value; state.config.modified = result.modified; toast('配置已保存'); } catch (error) { toast(error.message); } }
+function confirmDelete(path, kind = 'post') { const label = kind === 'draft' ? '草稿' : kind === 'page' ? '页面' : '文章'; modal(`<h2 id="modal-title">删除${label}？</h2><p>这会从 Hexo 源码目录删除 <strong>${escapeHTML(path)}</strong>。此操作无法在后台撤销。</p><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="secondary danger" id="confirm-delete">删除${label}</button></div>`); $('#cancel-modal').onclick = closeModal; $('#confirm-delete').onclick = async () => { try { await api('post', { method: 'DELETE', params: { path, kind } }); clearDraft(path, kind); closeModal(); await refreshPosts(); render(); toast(`${label}已删除`); } catch (error) { toast(error.message); } }; }
+function canLeaveConfig() { return !state.configDirty || window.confirm('配置还有未保存的改动，确定放弃吗？'); }
+async function loadConfig(scope = 'site') {
+  if (state.view === 'config' && !canLeaveConfig()) return false;
+  try { state.config = await api('config', { params: { scope } }); state.configDirty = false; state.view = 'config'; render(); return true; }
+  catch (error) { toast(error.message); return false; }
+}
+async function saveConfig() {
+  const button = $('#save-config');
+  button.disabled = true;
+  try {
+    const content = $('#config-editor').value;
+    const result = await api('config', { method: 'PUT', data: { scope: state.config.scope, content, modified: state.config.modified } });
+    state.config.content = content;
+    state.config.modified = result.modified;
+    state.configDirty = false;
+    button.textContent = '保存配置';
+    toast('配置已保存');
+  } catch (error) { toast(error.message); }
+  finally { button.disabled = false; }
+}
 async function runCommand(action) {
   if (state.busy) return toast('已有命令正在运行');
   if (action === 'deploy' && !window.confirm('将按当前 Hexo 配置部署博客，确定继续？')) return;
@@ -417,7 +449,7 @@ async function runCommand(action) {
   } catch (error) { terminal.textContent += `\n错误：${error.message}`; }
   finally { state.busy = false; document.querySelectorAll('[data-command]').forEach(button => button.disabled = false); }
 }
-async function navigate(view) { if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; } state.view = view; if (view === 'config' && !state.config) return loadConfig(); if (view === 'git') { render(); return loadGit(); } render(); }
+async function navigate(view) { if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; } if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return; state.view = view; if (view === 'config' && !state.config) return loadConfig(); if (view === 'git') { render(); return loadGit(); } render(); }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
 function showAuth(configured) {
@@ -467,14 +499,19 @@ $('#auth-form').onsubmit = async event => {
   } finally { $('#auth-submit').disabled = false; }
 };
 $('#logout').onclick = async () => {
-  if (!canLeaveEditor()) return;
+  if (!canLeaveEditor() || !canLeaveConfig()) return;
   try { await api('auth/logout', { method: 'POST' }); }
   catch (error) { return toast(error.message); }
   state.csrf = null;
   state.root = null;
   state.posts = [];
   state.drafts = [];
+  state.pages = [];
   state.current = null;
+  state.config = null;
+  state.configDirty = false;
+  state.editorBuffer = null;
+  $('#view').replaceChildren();
   showAuth(true);
 };
 $('#account-settings').onclick = () => {
@@ -489,16 +526,20 @@ $('#account-settings').onclick = () => {
       await api('auth/password', { method: 'POST', data: { oldPassword: $('#old-password').value, newPassword: $('#new-password').value } });
       closeModal();
       state.csrf = null;
+      state.current = null;
+      state.config = null;
+      state.configDirty = false;
+      $('#view').replaceChildren();
       showAuth(true);
       toast('密码已更新，请重新登录');
     } catch (error) { toast(error.message); submit.disabled = false; }
   };
 };
-$('#top-new').onclick = showNewPost;
+$('#top-new').onclick = () => showNewPost(state.view === 'pages' ? 'page' : 'post');
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = event => { if (event.target === $('#modal')) closeModal(); };
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && state.view === 'editor') { event.preventDefault(); savePost(); } });
-window.addEventListener('beforeunload', event => { if (state.editorDirty) { saveDraft(); event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
     const status = await api('auth/status');

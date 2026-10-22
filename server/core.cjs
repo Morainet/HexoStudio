@@ -16,9 +16,10 @@ function validateProject(input) {
 }
 
 function articleDir(root, kind = 'post', create = false) {
-  if (!['post', 'draft'].includes(kind)) throw new Error('无效的文章类型');
+  if (!['post', 'draft', 'page'].includes(kind)) throw new Error('无效的文章类型');
   const source = path.join(root, 'source');
-  if (fs.lstatSync(source).isSymbolicLink()) throw new Error('文章目录不能是符号链接');
+  if (fs.lstatSync(source).isSymbolicLink()) throw new Error('内容目录不能是符号链接');
+  if (kind === 'page') return source;
   const dir = path.join(source, kind === 'draft' ? '_drafts' : '_posts');
   if (fs.existsSync(dir) && fs.lstatSync(dir).isSymbolicLink()) throw new Error('文章目录不能是符号链接');
   if (create && kind === 'draft') fs.mkdirSync(dir, { recursive: true });
@@ -41,6 +42,7 @@ function safeArticlePath(root, name, kind = 'post', allowMissing = false) {
   const base = fs.realpathSync(articleDir(root, kind));
   const target = path.resolve(base, name);
   if (target === base || !target.startsWith(base + path.sep)) throw new Error('文章路径越界');
+  if (kind === 'page' && path.relative(base, target).split(path.sep).some(part => part.startsWith('_') || part.startsWith('.'))) throw new Error('不能访问 Hexo 内部目录');
   let current = base;
   for (const part of path.relative(base, target).split(path.sep)) {
     current = path.join(current, part);
@@ -90,6 +92,7 @@ function listPosts(root, kind = 'post') {
   const result = [];
   function visit(dir) {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (kind === 'page' && (entry.name.startsWith('_') || entry.name.startsWith('.'))) continue;
       const file = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) visit(file);
@@ -113,6 +116,19 @@ function createPost(root, title, localDate, kind = 'post') {
   if (typeof title !== 'string' || !title.trim()) throw new Error('请输入文章标题');
   articleDir(root, kind, true);
   const base = slugify(title);
+  if (kind === 'page') {
+    const source = articleDir(root, kind);
+    let folder = base;
+    let index = 2;
+    while (fs.existsSync(path.join(source, folder))) folder = `${base}-${index++}`;
+    const date = typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(localDate)
+      ? localDate : new Date().toISOString().replace('T', ' ').slice(0, 19);
+    fs.mkdirSync(path.join(source, folder));
+    const name = `${folder}/index.md`;
+    try { fs.writeFileSync(safeArticlePath(root, name, kind, true), `---\ntitle: ${JSON.stringify(title.trim())}\ndate: ${date}\n---\n\n`, { flag: 'wx' }); }
+    catch (error) { fs.rmdirSync(path.join(source, folder)); throw error; }
+    return { path: name, kind, content: fs.readFileSync(path.join(source, name), 'utf8') };
+  }
   let name = `${base}.md`;
   let index = 2;
   while (fs.existsSync(safeArticlePath(root, name, kind, true))) name = `${base}-${index++}.md`;
@@ -147,6 +163,14 @@ function savePost(root, name, content, expectedModified, metadata = {}, kind = '
 function deletePost(root, name, kind = 'post') {
   const target = safeArticlePath(root, name, kind);
   fs.unlinkSync(target);
+  if (kind === 'page') {
+    const source = articleDir(root, kind);
+    let directory = path.dirname(target);
+    while (directory !== source && fs.readdirSync(directory).length === 0) {
+      fs.rmdirSync(directory);
+      directory = path.dirname(directory);
+    }
+  }
 }
 
 function publishDraft(root, name, expectedModified, localDate) {
@@ -174,6 +198,12 @@ function publishDraft(root, name, expectedModified, localDate) {
 
 function configPath(root, scope) {
   if (scope === 'site') return path.join(root, '_config.yml');
+  if (typeof scope === 'string' && scope.startsWith('override:')) {
+    const filename = scope.slice('override:'.length);
+    if (!/^_config\.[a-z0-9_-]+\.(yml|yaml|json)$/i.test(filename)) throw new Error('无效的配置文件名');
+    const config = path.join(root, filename);
+    if (fs.existsSync(config) && fs.statSync(config).isFile() && !fs.lstatSync(config).isSymbolicLink()) return config;
+  }
   if (typeof scope === 'string' && scope.startsWith('theme:')) {
     const theme = scope.slice(6);
     if (!/^[a-z0-9_-]+$/i.test(theme)) throw new Error('无效的主题名称');
@@ -182,6 +212,12 @@ function configPath(root, scope) {
     if (fs.existsSync(config) && !fs.lstatSync(themeDir).isSymbolicLink() && !fs.lstatSync(config).isSymbolicLink()) return config;
   }
   throw new Error('配置文件不存在');
+}
+
+function listThemeOverrides(root) {
+  return fs.readdirSync(root, { withFileTypes: true })
+    .filter(entry => entry.isFile() && /^_config\.[a-z0-9_-]+\.(yml|yaml|json)$/i.test(entry.name))
+    .map(entry => entry.name).sort();
 }
 
 function listThemes(root) {
@@ -202,4 +238,4 @@ function runHexo(root, action, onData) {
   return child;
 }
 
-module.exports = { validateProject, siteInfo, safePostPath, safeArticlePath, parsePost, listPosts, createPost, readPost, savePost, deletePost, publishDraft, configPath, listThemes, runHexo };
+module.exports = { validateProject, siteInfo, safePostPath, safeArticlePath, parsePost, listPosts, createPost, readPost, savePost, deletePost, publishDraft, configPath, listThemes, listThemeOverrides, runHexo };

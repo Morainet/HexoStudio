@@ -5,13 +5,14 @@
 ## 功能
 
 - 连接现有 Hexo 项目，浏览、搜索、新建、编辑和删除 `source/_posts` 中的 Markdown 文章
+- 在「页面管理」浏览、搜索、新建、编辑和删除 `source/` 下的独立 Markdown 页面；新建页面使用 `source/<页面路径>/index.md`，保留主题自定义 front matter
 - 在草稿箱管理 `source/_drafts`，支持创建、编辑和发布草稿；同名文章发布时自动换名
 - 编辑原始 front matter，保留主题使用的自定义字段；支持 Markdown、表格、代码块和图片预览
 - 写作工具栏支持标题、加粗、斜体和链接；可选择、粘贴或拖入 PNG/JPEG/GIF/WebP 图片
 - 在文章信息侧栏编辑标题、日期、标签和分类；未修改的 front matter 字段和主题自定义字段保持原样
 - 图片库列出此前上传的图片，点击即可重新插入文章
 - 未保存内容备份到当前浏览器或桌面程序的本机草稿，重新打开文章时可恢复
-- 查看和编辑站点 `_config.yml` 及已安装主题的 `_config.yml`
+- 查看和编辑站点 `_config.yml`、根目录 `_config.<主题>.yml/json` 以及已安装主题的 `_config.yml`；离开未保存的配置时给出提醒
 - 运行项目自身的 `hexo clean`、`hexo generate`、`hexo deploy`，实时查看日志
 - 保存时检查外部修改，避免覆盖其他编辑器中的更改
 - 通过 GitHub / GitLab 仓库地址和访问 Token 连接远端博客，支持指定分支和仓库内的博客子目录
