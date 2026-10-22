@@ -1,0 +1,43 @@
+{
+  "name": "hexostudio",
+  "version": "0.5.0",
+  "private": true,
+  "description": "A local web and desktop studio for Hexo blogs",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "web": "node server/index.cjs",
+    "desktop": "electron .",
+    "test": "node --test",
+    "package:mac": "electron-builder --mac",
+    "package:win": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "markdown-it": "14.3.3"
+  },
+  "devDependencies": {
+    "electron": "39.8.10",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "dev.hexostudio.app",
+    "productName": "HexoStudio",
+    "files": [
+      "desktop/**/*",
+      "server/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    }
+  }
+}

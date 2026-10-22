@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.hexostudio.json
+.DS_Store

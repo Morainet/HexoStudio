@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f7f8fb">
+  <title>HexoStudio · 博客工作台</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div id="app" class="shell">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">H<span>✦</span></span><div><strong>HexoStudio</strong><small>创作与发布空间</small></div></div>
+      <div class="workspace-label">工作空间</div>
+      <nav class="nav" aria-label="主导航">
+        <button data-view="dashboard" class="active"><span class="nav-icon">◫</span>概览</button>
+        <button data-view="posts"><span class="nav-icon">▤</span>文章管理</button>
+        <button data-view="config"><span class="nav-icon">⚙</span>站点配置</button>
+        <button data-view="git"><span class="nav-icon">⑂</span>Git 仓库</button>
+        <button data-view="deploy"><span class="nav-icon">↗</span>构建与部署</button>
+      </nav>
+      <div class="sidebar-bottom"><div class="project-chip"><span class="status-dot"></span><div><strong id="project-name">尚未连接项目</strong><small id="project-path">请选择 Hexo 目录</small></div></div><button id="change-project" class="text-button">切换项目 ↗</button></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div id="breadcrumb">工作空间 / 概览</div><div class="top-actions"><span id="connection" class="connection">本地工作台</span><button id="top-new" class="primary small">＋ 新建文章</button></div></header>
+      <div id="view" class="view"></div>
+    </main>
+  </div>
+  <div id="modal" class="modal-backdrop hidden" role="presentation"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button id="modal-close" class="icon-button close" aria-label="关闭">×</button><div id="modal-content"></div></div></div>
+  <div id="toast" class="toast hidden" role="status"></div>
+</body>
+</html>
