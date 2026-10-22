@@ -7,6 +7,7 @@ const core = require('./core.cjs');
 const { renderPreview } = require('./preview.cjs');
 const assets = require('./assets.cjs');
 const git = require('./git.cjs');
+const { AuthManager } = require('./auth.cjs');
 
 const publicDir = path.join(__dirname, '..', 'public');
 const settingsFile = process.env.HEXOSTUDIO_SETTINGS || path.join(os.homedir(), '.hexostudio.json');
@@ -25,6 +26,7 @@ function saveSettings(value) {
   fs.writeFileSync(settingsFile, JSON.stringify(value, null, 2), { mode: 0o600 });
   if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
 }
+const auth = new AuthManager(loadSettings, saveSettings);
 function getRoot() {
   const stored = process.env.HEXO_ROOT || loadSettings().root;
   return stored ? core.validateProject(stored) : null;
@@ -46,12 +48,21 @@ function body(req) {
   });
 }
 function authorized(req) {
-  if (!token) return true;
+  if (auth.session(req)) return true;
+  if (!token) return false;
   const supplied = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
   const a = Buffer.from(supplied);
   const b = Buffer.from(token);
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
+function tokenAuthorized(req) {
+  if (!token) return false;
+  const supplied = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(token);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+function secureCookie(req) { return Boolean(req.socket.encrypted || process.env.HEXOSTUDIO_COOKIE_SECURE === '1'); }
 function sameOrigin(req) {
   const origin = req.headers.origin;
   if (!origin) return true;
@@ -74,7 +85,7 @@ async function handle(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname.startsWith('/images/hexostudio/')) {
-      if (!authorized(req)) return send(res, 401, { error: '请提供有效访问令牌' });
+      if (!authorized(req)) return send(res, 401, { error: '请先登录' });
       const root = getRoot();
       if (!root) return send(res, 400, { error: '请先连接 Hexo 项目' });
       const image = assets.readImage(root, decodeURIComponent(url.pathname.slice('/images/hexostudio/'.length)));
@@ -83,8 +94,28 @@ async function handle(req, res) {
       return;
     }
     if (!url.pathname.startsWith('/api/')) return staticFile(req, res, url.pathname);
-    if (!authorized(req)) return send(res, 401, { error: '请提供有效访问令牌' });
     if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: '跨站请求被拒绝' });
+    if (req.method === 'GET' && url.pathname === '/api/auth/status') return send(res, 200, auth.status(req));
+    if (req.method === 'POST' && url.pathname === '/api/auth/setup') {
+      const data = await body(req);
+      const session = await auth.setup(data.username, data.password, req, secureCookie(req));
+      return send(res, 200, { authenticated: true, username: data.username, csrf: session.csrf }, { 'Set-Cookie': session.cookie });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/login') {
+      const data = await body(req);
+      const session = await auth.login(data.username, data.password, req.socket.remoteAddress, secureCookie(req));
+      return send(res, 200, { authenticated: true, username: data.username, csrf: session.csrf }, { 'Set-Cookie': session.cookie });
+    }
+    if (!authorized(req)) return send(res, 401, { error: '请先登录' });
+    if (req.method !== 'GET' && !tokenAuthorized(req)) auth.checkCsrf(req);
+    if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
+      return send(res, 200, { ok: true }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/auth/password') {
+      const data = await body(req);
+      await auth.changePassword(req, data.oldPassword, data.newPassword);
+      return send(res, 200, { ok: true }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
+    }
     if (req.method === 'GET' && url.pathname === '/api/status') {
       let root = null;
       try { root = getRoot(); } catch { /* project may have moved */ }

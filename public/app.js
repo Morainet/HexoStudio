@@ -1,14 +1,16 @@
-const state = { root: null, site: null, connection: { type: 'local' }, git: null, gitMessage: '', posts: [], drafts: [], contentKind: 'post', view: 'dashboard', current: null, config: null, search: '', filter: 'all', busy: false, saving: false, editorDirty: false, editorBuffer: null, editorBaseModified: null, metadataValues: {}, metadataBase: {}, previewVersion: 0 };
+const state = { csrf: null, root: null, site: null, connection: { type: 'local' }, git: null, gitMessage: '', posts: [], drafts: [], contentKind: 'post', view: 'dashboard', current: null, config: null, search: '', filter: 'all', busy: false, saving: false, editorDirty: false, editorBuffer: null, editorBaseModified: null, metadataValues: {}, metadataBase: {}, previewVersion: 0 };
 const $ = selector => document.querySelector(selector);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const endpoint = (name, params = {}) => `/api/${name}${Object.keys(params).length ? '?' + new URLSearchParams(params) : ''}`;
 async function api(name, options = {}) {
+  const method = options.method || 'GET';
   const response = await fetch(endpoint(name, options.params), {
-    method: options.method || 'GET',
-    headers: options.data ? { 'Content-Type': 'application/json' } : {},
+    method,
+    headers: { ...(options.data ? { 'Content-Type': 'application/json' } : {}), ...(method !== 'GET' && state.csrf ? { 'X-CSRF-Token': state.csrf } : {}) },
     body: options.data ? JSON.stringify(options.data) : undefined
   });
   const result = await response.json();
+  if (response.status === 401 && !name.startsWith('auth/')) { state.csrf = null; showAuth(true); }
   if (!response.ok) throw new Error(result.error || '请求失败');
   return result;
 }
@@ -408,8 +410,8 @@ async function runCommand(action) {
   const terminal = $('#terminal'); terminal.textContent = `$ hexo ${action}\n`;
   document.querySelectorAll('[data-command]').forEach(button => button.disabled = true);
   try {
-    const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-    if (!response.ok) { const result = await response.json(); throw new Error(result.error || '命令运行失败'); }
+    const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf || '' }, body: JSON.stringify({ action }) });
+    if (!response.ok) { const result = await response.json(); if (response.status === 401) { state.csrf = null; showAuth(true); } throw new Error(result.error || '命令运行失败'); }
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let pending = '';
     while (true) { const { value, done } = await reader.read(); if (done) break; pending += decoder.decode(value, { stream: true }); const lines = pending.split('\n'); pending = lines.pop(); for (const line of lines) { if (!line) continue; const item = JSON.parse(line); terminal.textContent += item.type === 'exit' ? `\n进程结束，退出码 ${item.code}\n` : item.text; terminal.scrollTop = terminal.scrollHeight; } }
   } catch (error) { terminal.textContent += `\n错误：${error.message}`; }
@@ -418,9 +420,90 @@ async function runCommand(action) {
 async function navigate(view) { if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; } state.view = view; if (view === 'config' && !state.config) return loadConfig(); if (view === 'git') { render(); return loadGit(); } render(); }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
+function showAuth(configured) {
+  $('#app').classList.add('hidden');
+  $('#auth-screen').classList.remove('hidden');
+  $('#auth-form').reset();
+  $('#auth-error').classList.add('hidden');
+  $('#auth-title').textContent = configured ? '登录工作台' : '创建管理员账号';
+  $('#auth-description').textContent = configured ? '使用管理员账号继续管理博客。' : '首次使用请在本机设置账号，之后每次进入都需要登录。';
+  $('#auth-confirm-row').classList.toggle('hidden', configured);
+  $('#auth-confirm').required = !configured;
+  $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
+  $('#auth-submit').textContent = configured ? '登录' : '创建账号并进入';
+  $('#auth-form').dataset.mode = configured ? 'login' : 'setup';
+  $('#auth-username').focus();
+}
+async function loadWorkspace() {
+  const status = await api('status');
+  state.root = status.root;
+  state.site = status.site;
+  state.connection = status.connection;
+  $('#connection').textContent = status.mode === 'desktop' ? '桌面工作台' : '本地工作台';
+  if (state.root) await refreshPosts();
+  state.view = 'dashboard';
+  render();
+  $('#auth-screen').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+}
+$('#auth-form').onsubmit = async event => {
+  event.preventDefault();
+  const mode = $('#auth-form').dataset.mode;
+  const username = $('#auth-username').value.trim();
+  const password = $('#auth-password').value;
+  if (mode === 'setup' && password !== $('#auth-confirm').value) {
+    $('#auth-error').textContent = '两次输入的密码不一致';
+    $('#auth-error').classList.remove('hidden');
+    return;
+  }
+  $('#auth-submit').disabled = true;
+  try {
+    const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password } });
+    state.csrf = result.csrf;
+    await loadWorkspace();
+  } catch (error) {
+    $('#auth-error').textContent = error.message;
+    $('#auth-error').classList.remove('hidden');
+  } finally { $('#auth-submit').disabled = false; }
+};
+$('#logout').onclick = async () => {
+  if (!canLeaveEditor()) return;
+  try { await api('auth/logout', { method: 'POST' }); }
+  catch (error) { return toast(error.message); }
+  state.csrf = null;
+  state.root = null;
+  state.posts = [];
+  state.drafts = [];
+  state.current = null;
+  showAuth(true);
+};
+$('#account-settings').onclick = () => {
+  modal('<h2 id="modal-title">修改管理员密码</h2><p>修改后所有设备都需要重新登录。</p><form id="password-form" class="password-form"><label>当前密码<input id="old-password" type="password" autocomplete="current-password" required></label><label>新密码<input id="new-password" type="password" autocomplete="new-password" minlength="12" required></label><label>确认新密码<input id="confirm-password" type="password" autocomplete="new-password" required></label><div class="actions"><button type="button" class="secondary" id="cancel-password">取消</button><button type="submit" class="primary">保存并退出</button></div></form>');
+  $('#cancel-password').onclick = closeModal;
+  $('#password-form').onsubmit = async event => {
+    event.preventDefault();
+    if ($('#new-password').value !== $('#confirm-password').value) return toast('两次输入的新密码不一致');
+    const submit = $('#password-form button[type="submit"]');
+    submit.disabled = true;
+    try {
+      await api('auth/password', { method: 'POST', data: { oldPassword: $('#old-password').value, newPassword: $('#new-password').value } });
+      closeModal();
+      state.csrf = null;
+      showAuth(true);
+      toast('密码已更新，请重新登录');
+    } catch (error) { toast(error.message); submit.disabled = false; }
+  };
+};
 $('#top-new').onclick = showNewPost;
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = event => { if (event.target === $('#modal')) closeModal(); };
 document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && state.view === 'editor') { event.preventDefault(); savePost(); } });
 window.addEventListener('beforeunload', event => { if (state.editorDirty) { saveDraft(); event.preventDefault(); event.returnValue = ''; } });
-(async () => { try { const status = await api('status'); state.root = status.root; state.site = status.site; state.connection = status.connection; $('#connection').textContent = status.mode === 'desktop' ? '桌面工作台' : '本地工作台'; if (state.root) await refreshPosts(); } catch (error) { toast(error.message); } render(); })();
+(async () => {
+  try {
+    const status = await api('auth/status');
+    if (!status.authenticated) return showAuth(status.configured);
+    state.csrf = status.csrf;
+    await loadWorkspace();
+  } catch (error) { showAuth(true); toast(error.message); }
+})();
