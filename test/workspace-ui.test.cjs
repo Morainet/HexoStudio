@@ -5,7 +5,9 @@ const vm = require('node:vm');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
 function load(start, end, globals) {
-  const context = vm.createContext(globals);
+  const HexoI18n = require('../public/i18n.js');
+  HexoI18n.setLanguage('zh-CN');
+  const context = vm.createContext({ t: HexoI18n.t, HexoI18n, ...globals });
   vm.runInContext(source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start))), context);
   return context;
 }

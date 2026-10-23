@@ -77,8 +77,8 @@ function sameOrigin(req) {
 }
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
-  if (!['index.html', 'app.js', 'style.css'].includes(name)) return send(res, 404, { error: '未找到页面' });
-  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'style.css': 'text/css' };
+  if (!['index.html', 'app.js', 'i18n.js', 'preferences.js', 'style.css'].includes(name)) return send(res, 404, { error: '未找到页面' });
+  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'style.css': 'text/css' };
   res.writeHead(200, {
     'Content-Type': `${types[name]}; charset=utf-8`,
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",

@@ -26,7 +26,7 @@ function fixture() {
   const state = {};
   let fail = false;
   let renders = 0;
-  const context = vm.createContext({ $, state,
+  const context = vm.createContext({ $, state, t: require('../public/i18n.js').t, DisplayPreferences: { place() {} },
     document: { createElement: element, querySelectorAll: () => [] },
     api: async (name, options) => {
       calls.push({ name, data: options?.data });
