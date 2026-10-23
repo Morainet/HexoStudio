@@ -373,16 +373,16 @@ async function gitSync(action) {
 }
 function render() { if (!$('#auth-screen').classList.contains('hidden')) return; updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); DisplayPreferences.place(); }
 function connectionForm() {
-  return `<div class="connection-tabs"><button type="button" data-connect-mode="local" class="active">${t("本机目录")}</button><button type="button" data-connect-mode="remote">GitHub / GitLab</button></div>
+  return `<div class="connection-choices" role="group" aria-label="${t("博客来源")}"><button type="button" data-connect-mode="local" class="active" aria-pressed="true">${icon("folder")}<span><strong>${t("本机目录")}</strong><small>${t("管理已有的 Hexo 项目")}</small></span></button><button type="button" data-connect-mode="remote" aria-pressed="false">${icon("git")}<span><strong>GitHub / GitLab</strong><small>${t("使用仓库地址与 Token")}</small></span></button></div>
     <div id="local-fields" class="connection-fields"><p>${t("输入包含")} <code>_config.yml</code> ${t("与")} <code>source/_posts</code> ${t("的项目目录。")}</p><label for="root-input">${t("Hexo 项目目录")}</label><input id="root-input" placeholder="${t("/Users/name/blog 或 C:\\Users\\name\\blog")}"><div class="connect-actions"><button id="connect-project" class="primary">${t("连接本机项目")}</button><button id="browse-project" class="secondary hidden">${t("浏览目录…")}</button></div></div>
-    <div id="remote-fields" class="connection-fields hidden"><p>${t("用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。")}</p><div class="connection-grid"><div><label for="remote-provider">${t("服务商")}</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">${t("仓库")}</label><input id="remote-repo" placeholder="${t("username/repo 或 HTTPS 地址")}" autocomplete="off"></div><div><label for="remote-token">${t("访问 Token")}</label><input id="remote-token" type="password" placeholder="${t("有仓库读写权限的 Token")}" autocomplete="off"></div><div class="full"><details class="advanced-options"><summary>${t("更多选项 · 分支与博客路径")}</summary><div><label for="remote-branch">${t("项目分支")}</label><input id="remote-branch" placeholder="${t("留空使用默认分支")}" autocomplete="off"></div><div class="full"><label for="remote-path">${t("博客路径")}</label><input id="remote-path" placeholder="${t("留空为仓库根目录；例如 blog")}" autocomplete="off"></div></details></div></div><button id="connect-remote" class="primary">${t("连接远端仓库")}</button><p class="secret-note">${t("Token 保存在本机设置文件中，不写入 Git 远端地址。")}</p></div><p id="connection-error" class="form-error hidden" role="alert"></p>`;
+    <div id="remote-fields" class="connection-fields hidden"><p>${t("用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。")}</p><div class="connection-grid"><div><label for="remote-provider">${t("服务商")}</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">${t("仓库")}</label><input id="remote-repo" placeholder="${t("username/repo 或 HTTPS 地址")}" autocomplete="off"></div><div class="full"><label for="remote-token">${t("访问 Token")}</label><input id="remote-token" type="password" placeholder="${t("有仓库读写权限的 Token")}" autocomplete="off"></div><div class="full"><details class="advanced-options"><summary>${t("更多选项 · 分支与博客路径")}</summary><div><label for="remote-branch">${t("项目分支")}</label><input id="remote-branch" placeholder="${t("留空使用默认分支")}" autocomplete="off"></div><div class="full"><label for="remote-path">${t("博客路径")}</label><input id="remote-path" placeholder="${t("留空为仓库根目录；例如 blog")}" autocomplete="off"></div></details></div></div><button id="connect-remote" class="primary">${t("连接远端仓库")}</button><p class="secret-note">${t("Token 保存在本机设置文件中，不写入 Git 远端地址。")}</p></div><p id="connection-error" class="form-error hidden" role="alert"></p>`;
 }
 function bindConnectionForm() {
   document.querySelectorAll('[data-connect-mode]').forEach(button => button.onclick = () => {
     if (state.connecting) return;
     $('#connection-error').classList.add('hidden');
     const remote = button.dataset.connectMode === 'remote';
-    document.querySelectorAll('[data-connect-mode]').forEach(tab => tab.classList.toggle('active', tab === button));
+    document.querySelectorAll('[data-connect-mode]').forEach(tab => { tab.classList.toggle('active', tab === button); tab.setAttribute('aria-pressed', String(tab === button)); });
     $('#local-fields').classList.toggle('hidden', remote);
     $('#remote-fields').classList.toggle('hidden', !remote);
   });
@@ -394,7 +394,7 @@ function bindConnectionForm() {
 function onboarding() {
   $('#app').classList.add('hidden');
   $('#setup-blog-screen').classList.remove('hidden');
-  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="eyebrow">HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p><ol class="auth-steps" aria-label="${t("初始化进度")}"><li>${t("1 · 数据库 ✓")}</li><li>${t("2 · 管理员 ✓")}</li><li class="active" aria-current="step">${t("3 · 博客")}</li></ol>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
+  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="setup-progress" data-step="3" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="3" aria-label="${t("初始化进度")}"><div class="setup-progress-caption"><span>${t("首次设置")}</span><span>3 / 3</span></div><div class="setup-progress-track" aria-hidden="true"><span></span></div></div><div class="auth-heading"><div class="auth-brand" aria-hidden="true">H</div><div><div class="eyebrow">HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1></div></div><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
   bindConnectionForm();
   DisplayPreferences.place();
   $('#setup-logout').onclick = () => { if (!state.connecting) $('#logout').click(); };
@@ -675,11 +675,9 @@ function authStep(step) {
   $('#auth-storage-row').classList.toggle('hidden', !storage);
   $('#auth-back').classList.toggle('hidden', !setup || storage);
   $('#auth-steps').classList.toggle('hidden', !setup);
-  document.querySelectorAll('[data-auth-step]').forEach(item => {
-    const active = item.dataset.authStep === (storage ? 'storage' : 'account');
-    item.classList.toggle('active', active);
-    if (active) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
-  });
+  $('#auth-steps').dataset.step = storage ? '1' : '2';
+  $('#auth-steps').setAttribute('aria-valuenow', storage ? '1' : '2');
+  $('#auth-step-count').textContent = storage ? '1 / 3' : '2 / 3';
   $('#auth-title').textContent = !setup ? t("登录工作台") : storage ? t("连接数据库") : t("设置管理员");
   $('#auth-description').textContent = !setup ? t("使用管理员账号继续管理博客。") : storage ? t("先连接数据库，用于保存管理员账号。") : t("数据库已连接，设置后台登录账号。");
   $('#auth-submit').textContent = !setup ? t("登录") : storage ? t("验证并继续") : t("创建账号并继续");

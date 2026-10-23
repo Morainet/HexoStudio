@@ -1,6 +1,10 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "首次设置": "First-time setup",
+  "博客来源": "Blog source",
+  "管理已有的 Hexo 项目": "Use an existing Hexo project",
+  "使用仓库地址与 Token": "Connect with a URL and token",
   "无法连接服务，请检查服务是否运行后重试": "Cannot connect to the service. Check that it is running and try again.",
   "服务返回异常，请稍后重试": "Invalid server response. Please try again.",
   "请求失败": "Request failed",
