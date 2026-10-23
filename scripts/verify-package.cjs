@@ -22,7 +22,7 @@ async function verify() {
   try {
     const [packed] = JSON.parse(run(['pack', '--json', '--ignore-scripts', '--pack-destination', temporary], root));
     const names = packed.files.map(file => file.path);
-    for (const required of ['bin/hexostudio.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'LICENSE', 'README.md', 'package.json']) {
+    for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'LICENSE', 'README.md', 'package.json']) {
       assert.ok(names.includes(required), `Missing package file: ${required}`);
     }
     for (const name of names) {
@@ -38,12 +38,12 @@ async function verify() {
     const installed = path.join(installation, 'node_modules', 'hexostudio');
     const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
     assert.equal(manifest.main, 'server/index.cjs');
-    assert.equal(manifest.bin.hexostudio, 'bin/hexostudio.cjs');
+    assert.deepEqual(manifest.bin, { hs: 'bin/hs.cjs' });
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron')), false);
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
-    const version = run(['exec', '--offline', '--no', '--', 'hexostudio', '--version'], installation).trim();
+    const version = run(['exec', '--offline', '--no', '--', 'hs', '--version'], installation).trim();
     assert.equal(version, manifest.version);
-    await smokeCli(path.join(installed, manifest.bin.hexostudio), runtime);
+    await smokeCli(path.join(installed, manifest.bin.hs), runtime);
     const destination = path.join(root, 'dist', 'npm');
     fs.mkdirSync(destination, { recursive: true });
     fs.copyFileSync(path.join(temporary, packed.filename), path.join(destination, packed.filename));

@@ -47,7 +47,7 @@ git push origin v0.8.0
 
 ## npm 包验证与发布
 
-当前包名为 `hexostudio`，许可证为 MIT。包中仅包含 CLI、网页后端、静态界面、文字文档及许可证；安装它不会安装 Electron 和桌面打包工具。桌面版继续通过 GitHub Releases 分发。
+npm 包名为 `hexostudio`，安装后的命令为 `hs`，许可证为 MIT。包中仅包含 CLI、网页后端、静态界面、文字文档及许可证；安装它不会安装 Electron 和桌面打包工具。桌面版继续通过 GitHub Releases 分发。
 
 ```bash
 npm ci

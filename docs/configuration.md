@@ -29,13 +29,13 @@
 
 ## 命令行启动
 
-安装 npm 包后使用 `hexostudio start`（无参数的 `hexostudio` 同样启动服务）。源码开发可使用 `npm run web -- <选项>`。
+安装 npm 包后使用 `hs start`（无参数的 `hs` 同样启动服务）。源码开发可使用 `npm run web -- <选项>`。
 
 ```bash
-hexostudio start --port 4546 --root /path/to/blog
-hexostudio start --settings ./studio-settings.json
-hexostudio --help
-hexostudio --version
+hs start --port 4546 --root /path/to/blog
+hs start --settings ./studio-settings.json
+hs --help
+hs --version
 ```
 
 | 参数 | 作用 |

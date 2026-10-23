@@ -5,7 +5,7 @@ const { version } = require('../package.json');
 
 const HELP = `HexoStudio ${version} — Hexo blog management
 
-Usage: hexostudio [start] [options]
+Usage: hs [start] [options]
 
 Options:
   -p, --port <port>       Port (default: 4545; 0 chooses an available port)
@@ -28,7 +28,7 @@ function parseOptions(args, env = process.env, cwd = process.cwd()) {
     help: { type: 'boolean', short: 'h' }, version: { type: 'boolean', short: 'v' }
   } });
   if (positionals.length > 1 || (positionals.length && !['start', 'help'].includes(positionals[0]))) {
-    throw new Error('Unknown command. Use hexostudio --help.');
+    throw new Error('Unknown command. Use hs --help.');
   }
   if (values.help || positionals[0] === 'help') return { help: true };
   if (values.version) return { version: true };

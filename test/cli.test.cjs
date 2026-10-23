@@ -8,7 +8,7 @@ const { spawnSync } = require('node:child_process');
 const { parseOptions } = require('../server/cli.cjs');
 const { smokeCli } = require('../scripts/cli-smoke.cjs');
 
-const cli = path.resolve(__dirname, '../bin/hexostudio.cjs');
+const cli = path.resolve(__dirname, '../bin/hs.cjs');
 function command(args, extraEnv = {}) {
   const env = { ...process.env };
   for (const key of ['HEXO_ROOT', 'HEXOSTUDIO_HOST', 'HEXOSTUDIO_PORT', 'HEXOSTUDIO_SETTINGS', 'HEXOSTUDIO_TOKEN']) delete env[key];
@@ -39,7 +39,7 @@ test('CLI help and version work without loading settings or starting a server', 
   const env = { HEXOSTUDIO_HOST: '0.0.0.0', HEXOSTUDIO_PORT: 'invalid', HEXOSTUDIO_SETTINGS: 'missing/settings.json' };
   const help = command(['--help'], env);
   assert.equal(help.status, 0);
-  assert.match(help.stdout, /Usage: hexostudio/);
+  assert.match(help.stdout, /Usage: hs/);
   const version = command(['--version'], env);
   assert.equal(version.status, 0);
   assert.equal(version.stdout.trim(), require('../package.json').version);

@@ -45,10 +45,10 @@ CLI 已实现，尚未首次发布到 npm。当前可从源码运行 `npm run we
 
 ```bash
 npm install -g ./hexostudio-0.8.0.tgz
-hexostudio start
+hs start
 ```
 
-正式发布后可使用 `npx hexostudio start`，或通过 `npm install -g hexostudio` 安装。运行 `hexostudio --help` 查看端口、监听地址、博客目录和设置文件选项。
+正式发布后可使用 `npx --package hexostudio hs start`，或通过 `npm install -g hexostudio` 安装。运行 `hs --help` 查看端口、监听地址、博客目录和设置文件选项。
 
 ### 首次配置
 
