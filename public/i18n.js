@@ -383,6 +383,8 @@ const HexoI18n = (() => {
   "请先登录": "Please sign in first.",
   "管理员账号已创建": "An administrator account already exists.",
   "尝试次数过多，请 15 分钟后再试": "Too many attempts. Try again in 15 minutes.",
+  "登录请求过多，请稍后重试": "Too many login requests. Please try again later.",
+  "配置文件不存在或路径包含符号链接": "The configuration file is missing or its path contains a symbolic link.",
   "用户名或密码错误": "Incorrect username or password.",
   "当前密码错误": "Incorrect current password.",
   "请选择不同的目标存储": "Choose a different destination.",

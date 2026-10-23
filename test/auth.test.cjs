@@ -75,3 +75,51 @@ test('all three supported database types can initialize authentication', async (
     await auth.login('admin', 'long-secure-password', '127.0.0.1');
   }
 });
+
+test('concurrent login failures share the same limit and expire after 15 minutes', async t => {
+  const { auth, request } = fixture();
+  await auth.setup('admin', 'long-secure-password', request(), false, { type: 'postgres', url: 'postgresql://u:p@db.example/studio' });
+  const now = Date.now();
+  t.mock.method(Date, 'now', () => now);
+  const results = await Promise.allSettled(Array.from({ length: 8 }, () => auth.login('admin', 'wrong', 'client')));
+  assert.equal(results.filter(result => result.reason?.status === 401).length, 5);
+  assert.equal(results.filter(result => result.reason?.status === 429).length, 3);
+  await assert.rejects(auth.login('admin', 'long-secure-password', 'client'), error => error.status === 429);
+  t.mock.method(Date, 'now', () => now + 15 * 60 * 1000 + 1);
+  assert.ok((await auth.login('admin', 'long-secure-password', 'client')).cookie);
+});
+
+test('a successful concurrent login does not erase other failed attempts', async () => {
+  const { auth, request } = fixture();
+  await auth.setup('admin', 'long-secure-password', request(), false, { type: 'postgres', url: 'postgresql://u:p@db.example/studio' });
+  const results = await Promise.allSettled([
+    auth.login('admin', 'long-secure-password', 'client'),
+    ...Array.from({ length: 4 }, () => auth.login('admin', 'wrong', 'client'))
+  ]);
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.reason?.status === 401).length, 4);
+  await assert.rejects(auth.login('admin', 'wrong', 'client'), error => error.status === 401);
+  await assert.rejects(auth.login('admin', 'wrong', 'client'), error => error.status === 429);
+});
+
+test('invalid login input is rejected before database access', async () => {
+  const { auth } = fixture();
+  auth.account = async () => { assert.fail('invalid credentials must not access the database'); };
+  for (const [username, password] of [['admin', 'x'.repeat(1025)], ['admin', {}], [{}, 'password'], ['x'.repeat(33), 'password']]) {
+    await assert.rejects(auth.login(username, password, 'client'), error => error.status === 401);
+  }
+});
+
+test('login work is bounded across clients and slots are released after database failures', async () => {
+  const { auth } = fixture();
+  const pending = [];
+  auth.account = () => new Promise((resolve, reject) => pending.push({ resolve, reject }));
+  const attempts = Array.from({ length: 8 }, (_, index) => auth.login('admin', 'password', `client-${index}`));
+  const results = Promise.allSettled(attempts);
+  await assert.rejects(auth.login('admin', 'password', 'another-client'), error => error.status === 429);
+  assert.equal(pending.length, 8);
+  for (const request of pending) request.reject(Object.assign(new Error('Database unavailable'), { status: 503 }));
+  assert.ok((await results).every(result => result.reason?.status === 503));
+  auth.account = async () => null;
+  await assert.rejects(auth.login('admin', 'password', 'another-client'), error => error.status === 401);
+});

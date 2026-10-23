@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
     steps:
@@ -33,3 +33,6 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - name: Audit all dependencies (including desktop runtime)
+        if: matrix.node == 24
+        run: npm audit --audit-level=high

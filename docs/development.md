@@ -24,7 +24,7 @@
 
 | 工作流 | 触发方式 | 执行内容 |
 | --- | --- | --- |
-| CI | 分支推送、Pull Request、手动运行 | 在 Node.js 20 / 22 / 24 上安装锁定依赖、检查语法、运行测试 |
+| CI | 分支推送、Pull Request、手动运行 | 在 Node.js 22 / 24 上安装锁定依赖、检查语法、运行测试，并扫描全部依赖 |
 | Desktop builds | 推送 `v*` 标签、手动运行 | 先检查与测试，再构建 macOS Apple Silicon / Intel、Windows x64 安装包 |
 
 **下载测试安装包：** 选择 `Desktop builds` → `Run workflow`。完成后，在该次运行的 Artifacts 中下载对应平台的文件，保留 14 天。手动运行只生成构建产物。
@@ -41,6 +41,8 @@ git push origin v0.8.0
 工作流使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需配置个人 Token 或博客数据库凭据；只有创建 Release 的任务拥有仓库内容写权限。如果仓库禁用了 Actions，需要先在仓库设置中启用。
 
 当前构建未配置开发者签名或 macOS 公证，系统可能提示无法验证开发者。工作流验证代码和打包过程，安装及启动仍需在目标系统上验收。
+
+开发与构建需要 Node.js 22.12 或更新版本。CI 和发布检查使用 `npm audit --audit-level=high`，包含 Electron 等开发依赖；检测到已知高危或严重漏洞时会失败，阻止发布任务继续。漏洞扫描不能代替代码审查和目标系统验收。
 
 ## 项目结构
 

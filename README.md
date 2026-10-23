@@ -22,7 +22,7 @@
 
 ## 快速开始
 
-准备 **Node.js 20+、npm、Git** 和一个 **Hexo 源码项目**，以及可连接的 **PostgreSQL、MySQL 或 MongoDB**。数据库用于保存管理员账号，本机运行也需要配置。
+准备 **Node.js 22.12+、npm、Git** 和一个 **Hexo 源码项目**，以及可连接的 **PostgreSQL、MySQL 或 MongoDB**。数据库用于保存管理员账号，本机运行也需要配置。
 
 ```bash
 git clone https://github.com/Morainet/HexoStudio.git
@@ -67,7 +67,7 @@ npm run desktop
 
 本机构建产物位于 `dist/`。GitHub Actions 提供：
 
-- **CI**：提交和 PR 自动运行 Node.js 20 / 22 / 24 检查与测试。
+- **CI**：提交和 PR 自动运行 Node.js 22 / 24 检查与测试，并扫描依赖漏洞。
 - **Desktop builds**：手动构建 macOS Apple Silicon / Intel、Windows x64 安装包；推送匹配版本的 `v*` 标签时创建 Release 草稿。
 
 [查看 Actions](https://github.com/Morainet/HexoStudio/actions) · [构建与发布说明](docs/development.md#github-actions-自动化)

@@ -12,6 +12,7 @@ function validateProject(input) {
       !fs.existsSync(path.join(root, 'source', '_posts'))) {
     throw new Error('这不是有效的 Hexo 项目：需要 _config.yml 和 source/_posts 目录');
   }
+  configPath(root, 'site');
   return root;
 }
 
@@ -27,7 +28,7 @@ function articleDir(root, kind = 'post', create = false) {
 }
 
 function siteInfo(root) {
-  const config = fs.readFileSync(path.join(root, '_config.yml'), 'utf8');
+  const config = fs.readFileSync(configPath(root, 'site'), 'utf8');
   const field = name => {
     const line = config.split(/\r?\n/).find(row => new RegExp(`^${name}:\\s*`, 'i').test(row));
     return line ? line.replace(/^[^:]+:\s*/, '').trim().replace(/^['"]|['"]$/g, '') : '';
@@ -196,20 +197,33 @@ function publishDraft(root, name, expectedModified, localDate) {
   return readPost(root, targetName, 'post');
 }
 
+function checkedConfigPath(root, parts) {
+  let current = root;
+  for (let index = 0; index < parts.length; index++) {
+    current = path.join(current, parts[index]);
+    let stat;
+    try { stat = fs.lstatSync(current); }
+    catch (error) {
+      if (!['ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
+    }
+    if (!stat || stat.isSymbolicLink() || (index === parts.length - 1 ? !stat.isFile() : !stat.isDirectory())) {
+      throw Object.assign(new Error('配置文件不存在或路径包含符号链接'), { code: 'UNSAFE_CONFIG' });
+    }
+  }
+  return current;
+}
+
 function configPath(root, scope) {
-  if (scope === 'site') return path.join(root, '_config.yml');
+  if (scope === 'site') return checkedConfigPath(root, ['_config.yml']);
   if (typeof scope === 'string' && scope.startsWith('override:')) {
     const filename = scope.slice('override:'.length);
     if (!/^_config\.[a-z0-9_-]+\.(yml|yaml|json)$/i.test(filename)) throw new Error('无效的配置文件名');
-    const config = path.join(root, filename);
-    if (fs.existsSync(config) && fs.statSync(config).isFile() && !fs.lstatSync(config).isSymbolicLink()) return config;
+    return checkedConfigPath(root, [filename]);
   }
   if (typeof scope === 'string' && scope.startsWith('theme:')) {
     const theme = scope.slice(6);
     if (!/^[a-z0-9_-]+$/i.test(theme)) throw new Error('无效的主题名称');
-    const config = path.join(root, 'themes', theme, '_config.yml');
-    const themeDir = path.join(root, 'themes', theme);
-    if (fs.existsSync(config) && !fs.lstatSync(themeDir).isSymbolicLink() && !fs.lstatSync(config).isSymbolicLink()) return config;
+    return checkedConfigPath(root, ['themes', theme, '_config.yml']);
   }
   throw new Error('配置文件不存在');
 }
@@ -222,9 +236,13 @@ function listThemeOverrides(root) {
 
 function listThemes(root) {
   const themes = path.join(root, 'themes');
-  if (!fs.existsSync(themes)) return [];
+  if (!fs.existsSync(themes) || !fs.lstatSync(themes).isDirectory()) return [];
   return fs.readdirSync(themes, { withFileTypes: true })
-    .filter(x => x.isDirectory() && /^[a-z0-9_-]+$/i.test(x.name) && fs.existsSync(path.join(themes, x.name, '_config.yml')) && !fs.lstatSync(path.join(themes, x.name, '_config.yml')).isSymbolicLink())
+    .filter(x => {
+      if (!x.isDirectory() || !/^[a-z0-9_-]+$/i.test(x.name)) return false;
+      try { configPath(root, `theme:${x.name}`); return true; }
+      catch (error) { if (error.code === 'UNSAFE_CONFIG') return false; throw error; }
+    })
     .map(x => x.name);
 }
 

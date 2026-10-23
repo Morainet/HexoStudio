@@ -5,6 +5,9 @@ const { createStore, normalizeStorage, describeStorage } = require('./auth-store
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'hexostudio_session';
 const SESSION_AGE = 12 * 60 * 60 * 1000;
+const LOGIN_WINDOW = 15 * 60 * 1000;
+const MAX_LOGIN_CLIENTS = 10000;
+const MAX_PENDING_LOGINS = 8;
 const SCRYPT_OPTIONS = { N: 1 << 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 
 function validCredentials(username, password) {
@@ -35,6 +38,8 @@ class AuthManager {
     this.createStore = config => storeFactory(config, this.loadSettings, this.saveSettings);
     this.sessions = new Map();
     this.failures = new Map();
+    this.pendingLogins = 0;
+    this.lastLoginSweep = 0;
     this.setupPending = false;
   }
   storage() { return normalizeStorage(this.loadSettings().authStorage); }
@@ -106,17 +111,40 @@ class AuthManager {
   }
   async login(username, password, address, secure = false) {
     const now = Date.now();
-    const failures = (this.failures.get(address) || []).filter(time => now - time < 15 * 60 * 1000);
+    if (now - this.lastLoginSweep >= 60_000) {
+      for (const [client, attempts] of this.failures) {
+        const recent = attempts.filter(attempt => now - attempt.time < LOGIN_WINDOW);
+        if (recent.length) this.failures.set(client, recent);
+        else this.failures.delete(client);
+      }
+      this.lastLoginSweep = now;
+    }
+    const failures = (this.failures.get(address) || []).filter(attempt => now - attempt.time < LOGIN_WINDOW);
     if (failures.length >= 5) throw Object.assign(new Error('尝试次数过多，请 15 分钟后再试'), { status: 429 });
-    const admin = await this.account();
-    const hash = admin?.salt && typeof password === 'string' ? await hashPassword(password, admin.salt) : '';
-    if (!admin || username !== admin.username || !equal(hash, admin.hash)) {
-      failures.push(now);
-      this.failures.set(address, failures);
+    if (this.pendingLogins >= MAX_PENDING_LOGINS || (!this.failures.has(address) && this.failures.size >= MAX_LOGIN_CLIENTS)) {
+      throw Object.assign(new Error('登录请求过多，请稍后重试'), { status: 429 });
+    }
+    // Reserve before any await so in-flight requests count toward the limit.
+    const attempt = { time: now };
+    failures.push(attempt);
+    this.failures.set(address, failures);
+    if (typeof username !== 'string' || !/^[\p{L}\p{N}_-]{3,32}$/u.test(username) ||
+        typeof password !== 'string' || !password.length || password.length > 1024) {
       throw Object.assign(new Error('用户名或密码错误'), { status: 401 });
     }
-    this.failures.delete(address);
-    return this.createSession(username, secure);
+    this.pendingLogins++;
+    try {
+      const admin = await this.account();
+      const hash = admin?.salt ? await hashPassword(password, admin.salt) : '';
+      if (!admin || username !== admin.username || !equal(hash, admin.hash)) {
+        throw Object.assign(new Error('用户名或密码错误'), { status: 401 });
+      }
+      // Remove only this success; concurrent failures must remain counted.
+      const remaining = (this.failures.get(address) || []).filter(item => item !== attempt);
+      if (remaining.length) this.failures.set(address, remaining);
+      else this.failures.delete(address);
+      return this.createSession(username, secure);
+    } finally { this.pendingLogins--; }
   }
   async changePassword(req, oldPassword, newPassword) {
     const admin = await this.account();
