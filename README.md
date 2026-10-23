@@ -50,6 +50,8 @@ hs start
 
 正式发布后可使用 `npx --package hexostudio hs start`，或通过 `npm install -g hexostudio` 安装。运行 `hs --help` 查看端口、监听地址、博客目录和设置文件选项。
 
+遇到配置问题可运行 `hs doctor` 检查环境；`hs doctor --json` 输出机器可读报告。
+
 ### 首次配置
 
 按向导完成三步：

@@ -36,6 +36,8 @@ hs start --port 4546 --root /path/to/blog
 hs start --settings ./studio-settings.json
 hs --help
 hs --version
+hs doctor
+hs doctor --settings ./studio-settings.json --json
 ```
 
 | 参数 | 作用 |
@@ -48,6 +50,14 @@ hs --version
 | `--version` / `-v` | 显示版本 |
 
 命令行参数优先于对应环境变量；相对路径以运行命令时的目录为基准。端口占用时会报错，可指定其他端口。按 Ctrl+C 停止服务。博客、管理员配置和凭据不会写入 npm 安装目录，更新 npm 包会保留这些外部数据。
+
+启动时会显示访问地址、版本和设置文件位置。设置文件损坏或不是 JSON 对象时会直接退出，修复后再启动；不会自动覆盖现有配置。路径支持 `~`，例如 `--settings "~/studio/settings.json"`。
+
+### 环境诊断
+
+`hs doctor` 检查 Git、设置文件格式、数据库连接信息格式和 Hexo 源码目录，并提示博客依赖是否安装。它不会修改文件、连接数据库或启动服务，也不会输出 Token、密码和完整连接字符串。数据库连通性仍需通过网页中的验证操作检查。
+
+输出中的 `PASS` 表示检查通过，`WARN` 表示尚未配置或缺少可选能力，`FAIL` 表示需要处理的错误。有 `FAIL` 时退出码为 1，否则为 0；`--json` 可供脚本读取，仅适用于 `doctor`。诊断不检测端口占用，也不代表完整安全审计通过。
 
 Token 只通过环境变量配置，不提供命令行 Token 参数。使用 `--host 0.0.0.0` 等非本机地址仍需设置 `HEXOSTUDIO_TOKEN`，并按下文配置公网入口。
 

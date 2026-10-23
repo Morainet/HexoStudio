@@ -11,9 +11,11 @@ async function verify() {
   if (!npm) throw new Error('Run this check with npm run test:package.');
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'hexostudio-npm-'));
   const run = (args, cwd) => {
+    const env = { ...process.env, npm_config_cache: path.join(temporary, 'cache') };
+    for (const key of ['HEXO_ROOT', 'HEXOSTUDIO_HOST', 'HEXOSTUDIO_PORT', 'HEXOSTUDIO_SETTINGS', 'HEXOSTUDIO_TOKEN']) delete env[key];
     const result = spawnSync(process.execPath, [npm, ...args], {
       cwd, encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024,
-      env: { ...process.env, npm_config_cache: path.join(temporary, 'cache') }
+      env
     });
     if (result.error) throw result.error;
     if (result.status !== 0) throw new Error(`npm ${args[0]} failed:\n${result.stderr}\n${result.stdout}`);
@@ -43,6 +45,9 @@ async function verify() {
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
     const version = run(['exec', '--offline', '--no', '--', 'hs', '--version'], installation).trim();
     assert.equal(version, manifest.version);
+    const diagnostics = JSON.parse(run(['exec', '--offline', '--no', '--', 'hs', 'doctor', '--json', '--settings', path.join(runtime, 'settings.json')], installation));
+    assert.equal(diagnostics.ok, true);
+    assert.ok(diagnostics.checks.some(check => check.id === 'settings'));
     await smokeCli(path.join(installed, manifest.bin.hs), runtime);
     const destination = path.join(root, 'dist', 'npm');
     fs.mkdirSync(destination, { recursive: true });
