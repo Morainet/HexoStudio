@@ -9,7 +9,7 @@
   <script src="/app.js" defer></script>
 </head>
 <body>
-  <div id="auth-screen" class="auth-screen hidden"><form id="auth-form" class="auth-card"><div class="auth-brand">H<span>✦</span></div><div class="eyebrow">HEXOSTUDIO</div><h1 id="auth-title">登录工作台</h1><p id="auth-description">使用管理员账号继续管理博客。</p><label>用户名<input id="auth-username" name="username" autocomplete="username" required></label><label>密码<input id="auth-password" name="password" type="password" autocomplete="current-password" required></label><label id="auth-confirm-row" class="hidden">确认密码<input id="auth-confirm" name="confirm" type="password" autocomplete="new-password"></label><p id="auth-error" class="auth-error hidden" role="alert"></p><button id="auth-submit" class="primary" type="submit">登录</button></form></div>
+  <div id="auth-screen" class="auth-screen hidden"><form id="auth-form" class="auth-card"><div class="auth-brand">H<span>✦</span></div><div class="eyebrow">HEXOSTUDIO</div><h1 id="auth-title">登录工作台</h1><p id="auth-description">使用管理员账号继续管理博客。</p><label>用户名<input id="auth-username" name="username" autocomplete="username" required></label><label>密码<input id="auth-password" name="password" type="password" autocomplete="current-password" required></label><label id="auth-confirm-row" class="hidden">确认密码<input id="auth-confirm" name="confirm" type="password" autocomplete="new-password"></label><div id="auth-storage-row" class="hidden"><label>账号存储<select id="auth-storage-type"><option value="sqlite">SQLite（推荐）</option><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option><option value="file">本机设置文件</option></select></label><div id="auth-storage-fields"></div><p class="storage-help">数据库仅保存管理员账号哈希。文章和配置仍保存在 Hexo 项目中。</p><button id="auth-test-storage" class="secondary" type="button">测试连接</button></div><p id="auth-error" class="auth-error hidden" role="alert"></p><button id="auth-submit" class="primary" type="submit">登录</button></form></div>
   <div id="app" class="shell hidden">
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">H<span>✦</span></span><div><strong>HexoStudio</strong><small>创作与发布空间</small></div></div>
@@ -22,7 +22,7 @@
         <button data-view="git"><span class="nav-icon">⑂</span>Git 仓库</button>
         <button data-view="deploy"><span class="nav-icon">↗</span>构建与部署</button>
       </nav>
-      <div class="sidebar-bottom"><div class="project-chip"><span class="status-dot"></span><div><strong id="project-name">尚未连接项目</strong><small id="project-path">请选择 Hexo 目录</small></div></div><button id="change-project" class="text-button">切换项目 ↗</button><button id="account-settings" class="text-button">修改密码</button><button id="logout" class="text-button">退出登录</button></div>
+      <div class="sidebar-bottom"><div class="project-chip"><span class="status-dot"></span><div><strong id="project-name">尚未连接项目</strong><small id="project-path">请选择 Hexo 目录</small></div></div><button id="change-project" class="text-button">切换项目 ↗</button><button id="account-settings" class="text-button">修改密码</button><button id="account-storage" class="text-button">账号存储</button><button id="logout" class="text-button">退出登录</button></div>
     </aside>
     <main class="main">
       <header class="topbar"><div id="breadcrumb">工作空间 / 概览</div><div class="top-actions"><span id="connection" class="connection">本地工作台</span><button id="top-new" class="primary small">＋ 新建文章</button></div></header>

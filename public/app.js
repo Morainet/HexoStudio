@@ -452,6 +452,40 @@ async function runCommand(action) {
 async function navigate(view) { if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; } if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return; state.view = view; if (view === 'config' && !state.config) return loadConfig(); if (view === 'git') { render(); return loadGit(); } render(); }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
+function storageFields(type, prefix) {
+  const fields = $(`#${prefix}-storage-fields`);
+  fields.replaceChildren();
+  const add = (label, id, placeholder, required = true) => {
+    const row = document.createElement('label');
+    row.textContent = label;
+    const input = document.createElement('input');
+    input.id = `${prefix}-${id}`;
+    input.placeholder = placeholder;
+    input.required = required;
+    input.autocomplete = 'off';
+    row.append(input);
+    fields.append(row);
+  };
+  if (type === 'sqlite') add('SQLite 文件路径（留空使用默认路径）', 'storage-path', '默认：用户目录/.hexostudio/auth.sqlite', false);
+  if (type === 'postgres') add('PostgreSQL 连接地址', 'storage-url', 'postgresql://user:password@host:5432/database');
+  if (type === 'mysql') add('MySQL 连接地址', 'storage-url', 'mysql://user:password@host:3306/database');
+  if (type === 'mongodb') { add('MongoDB 连接地址', 'storage-url', 'mongodb://user:password@host:27017'); add('数据库名称', 'storage-database', 'hexostudio'); }
+}
+function storageValue(prefix) {
+  const type = $(`#${prefix}-storage-type`).value;
+  if (type === 'sqlite') return { type, path: $(`#${prefix}-storage-path`).value.trim() || undefined };
+  if (type === 'file') return { type };
+  const value = { type, url: $(`#${prefix}-storage-url`).value.trim() };
+  if (type === 'mongodb') value.database = $(`#${prefix}-storage-database`).value.trim();
+  return value;
+}
+$('#auth-storage-type').onchange = () => storageFields($('#auth-storage-type').value, 'auth');
+$('#auth-test-storage').onclick = async () => {
+  $('#auth-test-storage').disabled = true;
+  try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('auth') } }); toast('存储连接成功'); }
+  catch (error) { $('#auth-error').textContent = error.message; $('#auth-error').classList.remove('hidden'); }
+  finally { $('#auth-test-storage').disabled = false; }
+};
 function showAuth(configured) {
   $('#app').classList.add('hidden');
   $('#auth-screen').classList.remove('hidden');
@@ -460,6 +494,9 @@ function showAuth(configured) {
   $('#auth-title').textContent = configured ? '登录工作台' : '创建管理员账号';
   $('#auth-description').textContent = configured ? '使用管理员账号继续管理博客。' : '首次使用请在本机设置账号，之后每次进入都需要登录。';
   $('#auth-confirm-row').classList.toggle('hidden', configured);
+  $('#auth-storage-row').classList.toggle('hidden', configured);
+  storageFields($('#auth-storage-type').value, 'auth');
+  $('#auth-storage-row').querySelectorAll('input,select').forEach(input => { input.disabled = configured; });
   $('#auth-confirm').required = !configured;
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
   $('#auth-submit').textContent = configured ? '登录' : '创建账号并进入';
@@ -490,7 +527,7 @@ $('#auth-form').onsubmit = async event => {
   }
   $('#auth-submit').disabled = true;
   try {
-    const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password } });
+    const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? { storage: storageValue('auth') } : {}) } });
     state.csrf = result.csrf;
     await loadWorkspace();
   } catch (error) {
@@ -533,6 +570,30 @@ $('#account-settings').onclick = () => {
       showAuth(true);
       toast('密码已更新，请重新登录');
     } catch (error) { toast(error.message); submit.disabled = false; }
+  };
+};
+$('#account-storage').onclick = async () => {
+  let current;
+  try { current = (await api('auth/storage')).storage; }
+  catch (error) { return toast(error.message); }
+  modal('<h2 id="modal-title">账号存储</h2><p id="current-storage"></p><form id="storage-form"><label>目标存储<select id="move-storage-type"><option value="sqlite">SQLite</option><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option><option value="file">本机设置文件</option></select></label><div id="move-storage-fields"></div><label>当前管理员密码<input id="move-password" type="password" autocomplete="current-password" required></label><p>切换后需要重新登录。原数据库中的账号记录会保留，便于手动回退。</p><div class="actions"><button id="move-test" type="button" class="secondary">测试连接</button><button id="move-submit" type="submit" class="primary">迁移并退出</button></div></form>');
+  $('#current-storage').textContent = `当前：${current.type} · ${current.label}`;
+  $('#move-storage-type').value = current.type === 'file' ? 'sqlite' : current.type;
+  storageFields($('#move-storage-type').value, 'move');
+  $('#move-storage-type').onchange = () => storageFields($('#move-storage-type').value, 'move');
+  $('#move-test').onclick = async () => {
+    $('#move-test').disabled = true;
+    try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('move') } }); toast('存储连接成功'); }
+    catch (error) { toast(error.message); }
+    finally { $('#move-test').disabled = false; }
+  };
+  $('#storage-form').onsubmit = async event => {
+    event.preventDefault();
+    $('#move-submit').disabled = true;
+    try {
+      await api('auth/storage/migrate', { method: 'POST', data: { password: $('#move-password').value, storage: storageValue('move') } });
+      closeModal(); state.csrf = null; $('#view').replaceChildren(); showAuth(true); toast('账号已迁移，请重新登录');
+    } catch (error) { toast(error.message); $('#move-submit').disabled = false; }
   };
 };
 $('#top-new').onclick = () => showNewPost(state.view === 'pages' ? 'page' : 'post');

@@ -17,7 +17,7 @@
 - 保存时检查外部修改，避免覆盖其他编辑器中的更改
 - 通过 GitHub / GitLab 仓库地址和访问 Token 连接远端博客，支持指定分支和仓库内的博客子目录
 - Git 工作区展示文件变更，可预览工作区和暂存区的差异、选择暂存、取消暂存、提交、检查远端、拉取和推送；本机 Git 仓库也可使用这些操作
-- 首次在本机创建管理员账号，之后通过用户名和密码登录；支持退出及修改密码
+- 首次在本机创建管理员账号时选择 SQLite、PostgreSQL、MySQL、MongoDB 或本机设置文件；登录后可在「账号存储」迁移，支持退出及修改密码
 
 ## 网页版（本机运行）
 
@@ -28,7 +28,7 @@ npm install
 npm run web
 ```
 
-在浏览器打开 `http://127.0.0.1:4545`，首次访问先创建管理员账号（密码至少 12 个字符），再选择“本机目录”并输入 Hexo 项目绝对路径，或选择“GitHub / GitLab”填写仓库、Token、分支和博客路径。账号密码也适用于桌面版。也可以直接指定本机项目：
+在浏览器打开 `http://127.0.0.1:4545`，首次访问先创建管理员账号（密码至少 12 个字符）并选择账号存储，再选择“本机目录”并输入 Hexo 项目绝对路径，或选择“GitHub / GitLab”填写仓库、Token、分支和博客路径。账号密码也适用于桌面版。也可以直接指定本机项目：
 
 ```bash
 HEXO_ROOT=/path/to/your/blog npm run web
@@ -55,7 +55,9 @@ npm run desktop
 
 HexoStudio 不维护独立文章数据库。文章和配置仍是博客源码中的文件。远端连接会将仓库克隆到用户主目录的 `.hexostudio/repositories/`，编辑后需在 Git 工作区暂存、提交并推送。一个文件若在暂存后又被修改，可分别预览暂存区与工作区差异；提交只包含已暂存的版本。检查远端只更新远端跟踪状态，拉取采用快进模式，且要求工作区没有未提交变更。Git 操作需要系统已安装 Git。运行构建或部署命令前，博客目录需要已执行 `npm install`，且其中存在 `node_modules/.bin/hexo`；刚克隆的仓库通常还没有安装依赖。
 
-网页和桌面版共用用户主目录的 `.hexostudio.json` 保存项目路径、远端连接配置、管理员用户名及加盐 scrypt 密码哈希。文件在 macOS 上设置为仅当前用户可读写；Windows 下位于当前用户主目录。Git Token 不会写入 Git 远端 URL，也不会返回给前端。可用 `HEXOSTUDIO_SETTINGS` 覆盖设置文件位置。建议使用仅授权目标仓库内容读写的 Token。登录会话仅保存在服务器内存，服务重启后需重新登录；Cookie 设置为 HttpOnly、SameSite=Strict，写入接口还检查 CSRF 令牌。
+网页和桌面版共用用户主目录的 `.hexostudio.json` 保存项目路径、远端连接配置和账号存储连接信息。默认将管理员用户名、随机盐和 scrypt 密码哈希存入 `~/.hexostudio/auth.sqlite`。首次设置时也可选择 PostgreSQL、MySQL 或 MongoDB，填入已有数据库的连接地址（MongoDB 另需数据库名），HexoStudio 会创建 `hexostudio_admin` 表或集合；远端数据库应由用户预先创建并授予该表/集合读写权限。数据库密码保存在本机设置文件，不会返回给浏览器。原版本使用 `.hexostudio.json` 保存的管理员账号仍可直接登录，并可在「账号存储」中输入当前密码迁移。迁移会复制现有哈希、验证目标记录并让全部会话退出；旧数据库中的记录不会自动删除。文章和 Hexo 配置始终存于博客源码，不会搬入管理员数据库。
+
+设置文件和 SQLite 文件在 macOS/Linux 上设为仅当前用户可读写；Windows 下位于当前用户主目录，应由系统账户权限保护。Git Token 不会写入 Git 远端 URL，也不会返回给前端。可用 `HEXOSTUDIO_SETTINGS` 覆盖设置文件位置。建议使用仅授权目标仓库内容读写的 Token。登录会话仅保存在服务器内存，服务重启后需重新登录；Cookie 设置为 HttpOnly、SameSite=Strict，写入接口还检查 CSRF 令牌。
 
 上传图片保存在博客的 `source/images/hexostudio/`，每张最大 8 MB，文章中插入 `/images/hexostudio/...` 路径。草稿只保存在当前浏览器或桌面程序的本机存储，正式保存后才写入 Hexo 文章文件。
 

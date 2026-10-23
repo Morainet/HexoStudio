@@ -19,11 +19,18 @@ if (!['127.0.0.1', 'localhost', '::1'].includes(host) && !token) {
 
 function loadSettings() {
   try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
-  catch { return {}; }
+  catch (error) {
+    if (error.code === 'ENOENT') return {};
+    throw Object.assign(new Error('设置文件无法读取，请检查文件内容和权限'), { status: 503 });
+  }
 }
 function saveSettings(value) {
-  fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
-  fs.writeFileSync(settingsFile, JSON.stringify(value, null, 2), { mode: 0o600 });
+  fs.mkdirSync(path.dirname(settingsFile), { recursive: true, mode: 0o700 });
+  const temporary = `${settingsFile}.${process.pid}.${crypto.randomBytes(6).toString('hex')}.tmp`;
+  try {
+    fs.writeFileSync(temporary, JSON.stringify(value, null, 2), { mode: 0o600, flag: 'wx' });
+    fs.renameSync(temporary, settingsFile);
+  } finally { if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
   if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
 }
 const auth = new AuthManager(loadSettings, saveSettings);
@@ -95,10 +102,15 @@ async function handle(req, res) {
     }
     if (!url.pathname.startsWith('/api/')) return staticFile(req, res, url.pathname);
     if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: '跨站请求被拒绝' });
-    if (req.method === 'GET' && url.pathname === '/api/auth/status') return send(res, 200, auth.status(req));
+    if (req.method === 'GET' && url.pathname === '/api/auth/status') return send(res, 200, await auth.status(req));
+    if (req.method === 'POST' && url.pathname === '/api/auth/storage/test') {
+      const data = await body(req);
+      if (authorized(req) && !tokenAuthorized(req)) auth.checkCsrf(req);
+      return send(res, 200, { storage: await auth.testStorage(req, data.storage) });
+    }
     if (req.method === 'POST' && url.pathname === '/api/auth/setup') {
       const data = await body(req);
-      const session = await auth.setup(data.username, data.password, req, secureCookie(req));
+      const session = await auth.setup(data.username, data.password, req, secureCookie(req), data.storage);
       return send(res, 200, { authenticated: true, username: data.username, csrf: session.csrf }, { 'Set-Cookie': session.cookie });
     }
     if (req.method === 'POST' && url.pathname === '/api/auth/login') {
@@ -115,6 +127,12 @@ async function handle(req, res) {
       const data = await body(req);
       await auth.changePassword(req, data.oldPassword, data.newPassword);
       return send(res, 200, { ok: true }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/auth/storage') return send(res, 200, { storage: auth.storageInfo() });
+    if (req.method === 'POST' && url.pathname === '/api/auth/storage/migrate') {
+      const data = await body(req);
+      const storage = await auth.moveStorage(req, data.password, data.storage);
+      return send(res, 200, { storage }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
     }
     if (req.method === 'GET' && url.pathname === '/api/status') {
       let root = null;

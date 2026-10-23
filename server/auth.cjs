@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
+const { createStore, normalizeStorage, describeStorage } = require('./auth-store.cjs');
 
 const scrypt = promisify(crypto.scrypt);
 const COOKIE = 'hexostudio_session';
@@ -29,8 +30,11 @@ class AuthManager {
     this.failures = new Map();
     this.setupPending = false;
   }
-  configured() { return Boolean(this.loadSettings().admin?.hash); }
-  account() { return this.loadSettings().admin; }
+  storage() { return normalizeStorage(this.loadSettings().authStorage); }
+  store() { return createStore(this.storage(), this.loadSettings, this.saveSettings); }
+  async configured() { return Boolean((await this.account())?.hash); }
+  async account() { return this.store().read(); }
+  storageInfo() { return describeStorage(this.storage()); }
   session(req) {
     const cookie = (req.headers.cookie || '').split(';').map(part => part.trim()).find(part => part.startsWith(`${COOKIE}=`));
     if (!cookie) return null;
@@ -51,9 +55,9 @@ class AuthManager {
     if (session) this.sessions.delete(session.token);
     return `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure ? '; Secure' : ''}`;
   }
-  status(req) {
+  async status(req) {
     const session = this.session(req);
-    return { configured: this.configured(), authenticated: Boolean(session), username: session?.username || null, csrf: session?.csrf || null };
+    return { configured: await this.configured(), authenticated: Boolean(session), username: session?.username || null, csrf: session?.csrf || null, storage: session ? this.storageInfo() : undefined };
   }
   checkCsrf(req) {
     const session = this.session(req);
@@ -61,19 +65,35 @@ class AuthManager {
       throw Object.assign(new Error('会话验证失败，请重新登录'), { status: 403 });
     }
   }
-  async setup(username, password, req, secure = false) {
+  assertLocal(req) {
     let requestedHost = '';
     try { requestedHost = new URL(`http://${req.headers.host}`).hostname; } catch { /* invalid host */ }
     if (!isLoopback(req.socket.remoteAddress) || !['127.0.0.1', 'localhost', '[::1]'].includes(requestedHost)) {
       throw Object.assign(new Error('首次设置只能在本机访问'), { status: 403 });
     }
-    if (this.configured() || this.setupPending) throw Object.assign(new Error('管理员账号已创建'), { status: 409 });
+  }
+  async testStorage(req, input) {
+    if (!this.session(req)) {
+      this.assertLocal(req);
+      if (await this.configured()) throw Object.assign(new Error('请先登录'), { status: 401 });
+    }
+    const config = normalizeStorage(input);
+    await createStore(config, this.loadSettings, this.saveSettings).probe();
+    return describeStorage(config);
+  }
+  async setup(username, password, req, secure = false, input = { type: 'sqlite' }) {
+    this.assertLocal(req);
+    if (await this.configured() || this.setupPending) throw Object.assign(new Error('管理员账号已创建'), { status: 409 });
     validCredentials(username, password);
+    const config = normalizeStorage(input);
     this.setupPending = true;
     try {
       const salt = crypto.randomBytes(32).toString('hex');
       const hash = await hashPassword(password, salt);
-      this.saveSettings({ ...this.loadSettings(), admin: { username, salt, hash } });
+      await createStore(config, this.loadSettings, this.saveSettings).create({ username, salt, hash });
+      const settings = { ...this.loadSettings(), authStorage: config };
+      if (config.type !== 'file') delete settings.admin;
+      this.saveSettings(settings);
       return this.createSession(username, secure);
     } finally { this.setupPending = false; }
   }
@@ -81,7 +101,7 @@ class AuthManager {
     const now = Date.now();
     const failures = (this.failures.get(address) || []).filter(time => now - time < 15 * 60 * 1000);
     if (failures.length >= 5) throw Object.assign(new Error('尝试次数过多，请 15 分钟后再试'), { status: 429 });
-    const admin = this.account();
+    const admin = await this.account();
     const hash = admin?.salt && typeof password === 'string' ? await hashPassword(password, admin.salt) : '';
     if (!admin || username !== admin.username || !equal(hash, admin.hash)) {
       failures.push(now);
@@ -92,15 +112,34 @@ class AuthManager {
     return this.createSession(username, secure);
   }
   async changePassword(req, oldPassword, newPassword) {
-    const admin = this.account();
+    const admin = await this.account();
     if (!admin || typeof oldPassword !== 'string' || !equal(await hashPassword(oldPassword, admin.salt), admin.hash)) {
       throw Object.assign(new Error('当前密码错误'), { status: 401 });
     }
     validCredentials(admin.username, newPassword);
     const salt = crypto.randomBytes(32).toString('hex');
     const hash = await hashPassword(newPassword, salt);
-    this.saveSettings({ ...this.loadSettings(), admin: { username: admin.username, salt, hash } });
+    await this.store().replace({ username: admin.username, salt, hash });
     this.sessions.clear();
+  }
+  async moveStorage(req, password, input) {
+    const admin = await this.account();
+    if (!admin || typeof password !== 'string' || !equal(await hashPassword(password, admin.salt), admin.hash)) {
+      throw Object.assign(new Error('当前密码错误'), { status: 401 });
+    }
+    const target = normalizeStorage(input);
+    if (JSON.stringify(target) === JSON.stringify(this.storage())) throw Object.assign(new Error('请选择不同的目标存储'), { status: 400 });
+    const store = createStore(target, this.loadSettings, this.saveSettings);
+    await store.probe();
+    if (await store.read()) throw Object.assign(new Error('目标存储已有管理员账号'), { status: 409 });
+    await store.create(admin);
+    const copied = await store.read();
+    if (!copied || copied.hash !== admin.hash || copied.salt !== admin.salt) throw Object.assign(new Error('目标存储验证失败'), { status: 503 });
+    const settings = { ...this.loadSettings(), authStorage: target };
+    if (target.type !== 'file') delete settings.admin;
+    this.saveSettings(settings);
+    this.sessions.clear();
+    return describeStorage(target);
   }
 }
 
