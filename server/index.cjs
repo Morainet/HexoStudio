@@ -222,8 +222,8 @@ async function handle(req, res) {
       if (!['clean', 'generate', 'deploy'].includes(data.action)) throw new Error('不支持的命令');
       res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       const child = core.runHexo(root, data.action, (type, chunk) => res.write(JSON.stringify({ type, text: chunk }) + '\n'));
-      child.on('error', error => { res.write(JSON.stringify({ type: 'stderr', text: error.message }) + '\n'); res.end(); });
-      child.on('close', code => { res.write(JSON.stringify({ type: 'exit', code }) + '\n'); res.end(); });
+      child.on('error', error => { if (res.writableEnded || res.destroyed) return; res.write(JSON.stringify({ type: 'stderr', text: error.message }) + '\n'); res.end(); });
+      child.on('close', code => { if (res.writableEnded || res.destroyed) return; res.write(JSON.stringify({ type: 'exit', code }) + '\n'); res.end(); });
       res.on('close', () => { if (!res.writableEnded) child.kill(); });
       return;
     }

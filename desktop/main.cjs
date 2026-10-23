@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
 
 let server;
@@ -18,7 +18,10 @@ async function createWindow() {
     title: 'HexoStudio', backgroundColor: '#f7f8fb',
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') }
   });
-  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    try { if (['https:', 'http:'].includes(new URL(url).protocol)) shell.openExternal(url).catch(() => {}); } catch { /* Reject malformed or non-web links. */ }
+    return { action: 'deny' };
+  });
   window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(running.url + '/')) event.preventDefault(); });
   await window.loadURL(running.url);
 }

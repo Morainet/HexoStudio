@@ -9,15 +9,42 @@ async function api(name, options = {}) {
     method,
     headers: { ...(options.data ? { 'Content-Type': 'application/json' } : {}), ...(method !== 'GET' && state.csrf ? { 'X-CSRF-Token': state.csrf } : {}) },
     body: options.data ? JSON.stringify(options.data) : undefined
-  });
-  const result = await response.json();
+  }).catch(() => { throw new Error('无法连接服务，请检查服务是否运行后重试'); });
+  const result = await response.json().catch(() => { throw new Error('服务返回异常，请稍后重试'); });
   if (response.status === 401 && !name.startsWith('auth/')) { state.csrf = null; showAuth(true); }
-  if (!response.ok) throw new Error(result.error || '请求失败');
+  if (!response.ok) throw Object.assign(new Error(result.error || '请求失败'), { status: response.status });
   return result;
 }
-function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.remove('hidden'); clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.add('hidden'), 3200); }
-function modal(content) { $('#modal-content').innerHTML = content; $('#modal').classList.remove('hidden'); }
-function closeModal() { $('#modal').classList.add('hidden'); $('#modal-content').innerHTML = ''; }
+function toast(message, tone = 'success') {
+  const el = $('#toast');
+  el.textContent = message; el.dataset.tone = tone;
+  el.classList.remove('hidden'); clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.add('hidden'), tone === 'error' ? 7000 : 3500);
+}
+function modal(content) {
+  modal.previousFocus = document.activeElement;
+  $('#modal-content').innerHTML = content;
+  $('#modal').classList.remove('hidden');
+  const focus = $('#modal-content').querySelector('input:not([type="hidden"]),textarea,select,button');
+  (focus || $('#modal-close')).focus();
+}
+function closeModal() {
+  if (state.connecting) return;
+  $('#modal').classList.add('hidden'); $('#modal-content').innerHTML = '';
+  if (modal.previousFocus?.isConnected) modal.previousFocus.focus();
+}
+async function withButton(button, action, label = '处理中…') {
+  if (!button || button.disabled) return;
+  const original = button.textContent;
+  button.disabled = true; button.textContent = label;
+  try { return await action(); }
+  catch (error) { toast(error.message, 'error'); }
+  finally { if (button.isConnected) { button.disabled = false; button.textContent = original; } }
+}
+function viewError(title, message, retry) {
+  $('#view').innerHTML = `${pageHead('WORKSPACE', title, '')}<section class="panel empty"><div class="symbol">${icon('folder')}</div><h2>暂时无法加载</h2><p>${escapeHTML(message)}</p><button id="retry-view" class="secondary">重新加载</button></section>`;
+  $('#retry-view').onclick = retry;
+}
 function date(value) { return value ? String(value).slice(0, 10) : '未设置日期'; }
 function fullName(path) { return path?.split('/').at(-1) || ''; }
 function draftKey(path, kind = state.current?.kind || 'post') { return `hexostudio:draft:${state.root}:${kind}:${path}`; }
@@ -37,16 +64,16 @@ function clearDraft(path, kind) { try { localStorage.removeItem(draftKey(path, k
 function saveDraft() {
   if (!state.current || !state.editorDirty) return;
   try { localStorage.setItem(draftKey(state.current.path), JSON.stringify({ content: state.editorBuffer, metadataValues: state.metadataValues, modified: state.editorBaseModified, savedAt: Date.now() })); }
-  catch { $('#editor-status').textContent = '本机草稿空间不足，请及时保存'; }
+  catch { if ($('#editor-status')) $('#editor-status').textContent = '本机草稿未备份，请及时保存'; }
 }
-function canLeaveEditor() { if (state.saving) { toast('文章正在保存，请稍候'); return false; } if (!state.editorDirty) return true; saveDraft(); return window.confirm('文章还有未保存的改动。离开后可从本机草稿恢复，确定离开吗？'); }
+function canLeaveEditor() { if (state.uploading) { toast('图片正在上传，请稍候'); return false; } if (state.saving) { toast('文章正在保存，请稍候'); return false; } if (!state.editorDirty) return true; saveDraft(); return window.confirm('文章还有未保存的改动，确定离开吗？建议先保存到博客。'); }
 function setEditorDirty() {
   state.editorBuffer = $('#editor').value;
   if (document.activeElement === $('#editor')) rememberEditorSelection();
   document.querySelectorAll('[data-meta]').forEach(input => { state.metadataValues[input.dataset.meta] = input.value; });
   state.editorDirty = state.editorBuffer !== state.current.content || Object.keys(metadataEdits()).length > 0;
   $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${state.current.kind === 'draft' ? '草稿' : state.current.kind === 'page' ? '页面' : '文章'}`;
-  $('#editor-status').textContent = state.editorDirty ? '未保存 · 已备份本机草稿' : '所有更改已保存';
+  $('#editor-status').textContent = state.editorDirty ? '未保存更改' : '所有更改已保存';
   clearTimeout(state.draftTimer);
   if (state.editorDirty) state.draftTimer = setTimeout(saveDraft, 350); else clearDraft(state.current.path);
   schedulePreview();
@@ -65,9 +92,9 @@ function updateShell() {
   $('#project-name').textContent = state.root ? (state.site?.title || fullName(state.root)) : '尚未连接项目';
   $('#project-path').textContent = state.connection?.type === 'remote' ? `${state.connection.provider} · ${state.connection.repository}` : state.root || '请选择 Hexo 目录';
   $('#top-new').disabled = !state.root;
-  $('#top-new span').textContent = state.view === 'pages' ? '新建页面' : '新建文章';
+  $('#top-new span').textContent = (state.view === 'pages' || (state.view === 'editor' && state.current?.kind === 'page')) ? '新建页面' : '新建文章';
   document.querySelectorAll('.nav button').forEach(button => {
-    const active = button.dataset.view === state.view;
+    const active = button.dataset.view === (state.view === 'editor' ? state.current?.kind === 'page' ? 'pages' : 'posts' : state.view);
     button.classList.toggle('active', active);
     if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
@@ -90,29 +117,68 @@ function dashboard() {
   $('#hero-new').onclick = () => showNewPost('draft');
   $('#quick-new').onclick = () => showNewPost('draft');
 }
+function listPreferences(kind) {
+  state.lists ||= {};
+  return state.lists[kind] ||= { query: '', tag: 'all', sort: 'recent', page: 1, timeKey: kind === 'page' ? 'modified' : 'date' };
+}
+function listPage(items, prefs) {
+  const sorted = [...items].sort((a, b) => prefs.sort === 'title'
+    ? a.title.localeCompare(b.title, 'zh-CN')
+    : String(b[prefs.timeKey || 'date'] || b.modified || '').localeCompare(String(a[prefs.timeKey || 'date'] || a.modified || '')));
+  const pages = Math.max(1, Math.ceil(sorted.length / 20));
+  prefs.page = Math.min(Math.max(prefs.page, 1), pages);
+  return { items: sorted.slice((prefs.page - 1) * 20, prefs.page * 20), pages, total: sorted.length };
+}
+function listFooter(page, prefs) {
+  return `<footer class="list-footer"><span role="status">共 ${page.total} 项${page.total ? ` · 第 ${(prefs.page - 1) * 20 + 1}–${Math.min(prefs.page * 20, page.total)} 项` : ''}</span><div><button id="list-prev" class="secondary" ${prefs.page <= 1 ? 'disabled' : ''} aria-label="上一页">上一页</button><span>${prefs.page} / ${page.pages}</span><button id="list-next" class="secondary" ${prefs.page >= page.pages ? 'disabled' : ''} aria-label="下一页">下一页</button></div></footer>`;
+}
+function listSort(prefs) {
+  return `<select id="list-sort" class="filter" aria-label="排序方式"><option value="recent" ${prefs.sort === 'recent' ? 'selected' : ''}>最新优先</option><option value="title" ${prefs.sort === 'title' ? 'selected' : ''}>标题排序</option></select>`;
+}
+function bindList(prefs, draw, searchId) {
+  const input = $(searchId);
+  const search = () => {
+    const cursor = input.selectionStart;
+    prefs.query = input.value; prefs.page = 1;
+    draw(); $(searchId).focus(); $(searchId).setSelectionRange(cursor, cursor);
+  };
+  input.oninput = event => { if (!event.isComposing) search(); };
+  input.oncompositionend = search;
+  $('#list-sort').onchange = event => { prefs.sort = event.target.value; prefs.page = 1; draw(); };
+  $('#list-prev').onclick = () => { prefs.page--; draw(); $('#view').scrollIntoView({ block: 'start' }); };
+  $('#list-next').onclick = () => { prefs.page++; draw(); $('#view').scrollIntoView({ block: 'start' }); };
+  if ($('#clear-filter')) $('#clear-filter').onclick = () => { prefs.query = ''; prefs.tag = 'all'; prefs.page = 1; draw(); $(searchId).focus(); };
+  $('#refresh-list').onclick = () => withButton($('#refresh-list'), async () => {
+    const view = state.view; await refreshPosts(); if (state.view === view) draw();
+  }, '刷新中…');
+}
 function postsPage() {
   const items = state.contentKind === 'draft' ? state.drafts : state.posts;
-  const query = state.search.toLowerCase();
-  const shown = items.filter(post => (post.title + post.path + post.tags.join(' ')).toLowerCase().includes(query) && (state.filter === 'all' || post.tags.includes(state.filter)));
+  const prefs = listPreferences(state.contentKind);
+  const query = prefs.query.trim().toLowerCase();
   const tags = [...new Set(items.flatMap(post => post.tags))].sort();
-  $('#view').innerHTML = `${pageHead('CONTENT LIBRARY', '文章管理', `已发布 ${state.posts.length} 篇文章 · ${state.drafts.length} 篇草稿。`, '<button id="new-draft" class="secondary">＋ 新建草稿</button><button id="new-post" class="primary">＋ 新建文章</button>')}
+  if (prefs.tag !== 'all' && !tags.includes(prefs.tag)) prefs.tag = 'all';
+  const page = listPage(items.filter(post => (post.title + post.path + post.tags.join(' ')).toLowerCase().includes(query) && (prefs.tag === 'all' || post.tags.includes(prefs.tag))), prefs);
+  const filtered = query || prefs.tag !== 'all';
+  $('#view').innerHTML = `${pageHead('CONTENT LIBRARY', '文章管理', `已发布 ${state.posts.length} 篇文章 · ${state.drafts.length} 篇草稿。`, '<button id="refresh-list" class="secondary">刷新</button><button id="new-draft" class="secondary">＋ 新建草稿</button><button id="new-post" class="primary">＋ 新建文章</button>')}
   <div class="content-tabs"><button data-content-kind="post" class="${state.contentKind === 'post' ? 'active' : ''}">已发布文章 <span>${state.posts.length}</span></button><button data-content-kind="draft" class="${state.contentKind === 'draft' ? 'active' : ''}">草稿箱 <span>${state.drafts.length}</span></button></div>
-  <div class="toolbar"><label class="search">${icon('search')}<input id="search" type="search" placeholder="搜索标题、路径或标签" value="${escapeHTML(state.search)}"></label><select id="filter" class="filter"><option value="all">全部标签</option>${tags.map(tag => `<option value="${escapeHTML(tag)}" ${tag === state.filter ? 'selected' : ''}>${escapeHTML(tag)}</option>`).join('')}</select></div>
-  <section class="panel table-panel"><div class="table-head"><span>文章</span><span>标签</span><span>日期</span><span>操作</span></div>${shown.length ? shown.map(post => row(post)).join('') : `<div class="empty"><div class="symbol">${icon('post')}</div>${state.contentKind === 'draft' ? '草稿箱是空的' : '没有找到文章'}</div>`}</section>`;
+  <div class="toolbar"><label class="search">${icon('search')}<input id="search" type="search" aria-label="搜索文章" placeholder="搜索标题、路径或标签" value="${escapeHTML(prefs.query)}"></label><div class="list-filters"><select id="filter" class="filter" aria-label="按标签筛选"><option value="all">全部标签</option>${tags.map(tag => `<option value="${escapeHTML(tag)}" ${tag === prefs.tag ? 'selected' : ''}>${escapeHTML(tag)}</option>`).join('')}</select>${listSort(prefs)}</div></div>
+  <section class="panel table-panel"><div class="table-head"><span>文章</span><span>标签</span><span>日期</span><span>操作</span></div>${page.total ? page.items.map(post => row(post)).join('') : `<div class="empty"><div class="symbol">${icon('post')}</div><h2>${filtered ? '没有匹配的文章' : state.contentKind === 'draft' ? '开始记录新的想法' : '还没有文章'}</h2><p>${filtered ? '试试其他关键词，或清除筛选。' : '点击上方按钮，创建你的第一篇内容。'}</p>${filtered ? '<button id="clear-filter" class="secondary">清除筛选</button>' : ''}</div>`}${listFooter(page, prefs)}</section>`;
   $('#new-post').onclick = () => showNewPost('post');
   $('#new-draft').onclick = () => showNewPost('draft');
-  document.querySelectorAll('[data-content-kind]').forEach(button => button.onclick = () => { state.contentKind = button.dataset.contentKind; state.filter = 'all'; state.search = ''; postsPage(); });
-  $('#search').oninput = event => { state.search = event.target.value; const start = event.target.selectionStart; postsPage(); const input = $('#search'); input.focus(); input.setSelectionRange(start, start); };
-  $('#filter').onchange = event => { state.filter = event.target.value; postsPage(); };
+  document.querySelectorAll('[data-content-kind]').forEach(button => button.onclick = () => { state.contentKind = button.dataset.contentKind; postsPage(); });
+  $('#filter').onchange = event => { prefs.tag = event.target.value; prefs.page = 1; postsPage(); };
+  bindList(prefs, postsPage, '#search');
 }
 function pagesPage() {
-  const query = state.search.toLowerCase();
-  const shown = state.pages.filter(page => `${page.title} ${page.path}`.toLowerCase().includes(query));
-  $('#view').innerHTML = `${pageHead('INDEPENDENT PAGES', '页面管理', `共 ${state.pages.length} 个独立页面，位于 Hexo 的 source 目录。`, '<button id="new-page" class="primary">＋ 新建页面</button>')}
-    <div class="toolbar"><label class="search">${icon('search')}<input id="page-search" type="search" placeholder="搜索页面标题或路径" value="${escapeHTML(state.search)}"></label></div>
-    <section class="panel table-panel"><div class="table-head page-table"><span>页面</span><span>文件路径</span><span>最近修改</span><span>操作</span></div>${shown.length ? shown.map(page => `<div class="article-row page-table"><div><span class="title">${escapeHTML(page.title)}</span><div class="excerpt">${escapeHTML(page.excerpt || '独立页面')}</div></div><span class="muted page-path">${escapeHTML(page.path)}</span><span class="muted">${escapeHTML(date(page.modified))}</span><div class="row-actions"><button data-kind="page" data-open="${escapeHTML(page.path)}">编辑</button><button data-kind="page" data-delete="${escapeHTML(page.path)}">删除</button></div></div>`).join('') : `<div class="empty"><div class="symbol">${icon('pages')}</div>还没有找到页面</div>`}</section>`;
+  const prefs = listPreferences('page');
+  const query = prefs.query.trim().toLowerCase();
+  const page = listPage(state.pages.filter(item => `${item.title} ${item.path}`.toLowerCase().includes(query)), prefs);
+  $('#view').innerHTML = `${pageHead('INDEPENDENT PAGES', '页面管理', `共 ${state.pages.length} 个独立页面，位于 Hexo 的 source 目录。`, '<button id="refresh-list" class="secondary">刷新</button><button id="new-page" class="primary">＋ 新建页面</button>')}
+    <div class="toolbar"><label class="search">${icon('search')}<input id="page-search" type="search" aria-label="搜索页面" placeholder="搜索页面标题或路径" value="${escapeHTML(prefs.query)}"></label>${listSort(prefs)}</div>
+    <section class="panel table-panel"><div class="table-head page-table"><span>页面</span><span>文件路径</span><span>最近修改</span><span>操作</span></div>${page.total ? page.items.map(item => `<div class="article-row page-table"><div><span class="title">${escapeHTML(item.title)}</span><div class="excerpt">${escapeHTML(item.excerpt || '独立页面')}</div></div><span class="muted page-path" title="${escapeHTML(item.path)}">${escapeHTML(item.path)}</span><span class="muted">${escapeHTML(date(item.modified))}</span><div class="row-actions"><button data-kind="page" data-open="${escapeHTML(item.path)}">编辑</button><button data-kind="page" data-delete="${escapeHTML(item.path)}">删除</button></div></div>`).join('') : `<div class="empty"><div class="symbol">${icon('pages')}</div><h2>${query ? '没有匹配的页面' : '创建你的第一个页面'}</h2><p>${query ? '换个关键词试试。' : '关于、友链等独立内容都可以在这里管理。'}</p>${query ? '<button id="clear-filter" class="secondary">清除搜索</button>' : ''}</div>`}${listFooter(page, prefs)}</section>`;
   $('#new-page').onclick = () => showNewPost('page');
-  $('#page-search').oninput = event => { state.search = event.target.value; const start = event.target.selectionStart; pagesPage(); const input = $('#page-search'); input.focus(); input.setSelectionRange(start, start); };
+  bindList(prefs, pagesPage, '#page-search');
 }
 function editorPage() {
   const post = state.current;
@@ -135,7 +201,7 @@ function editorPage() {
   document.querySelectorAll('[data-meta]').forEach(input => input.oninput = setEditorDirty);
   document.querySelectorAll('[data-insert]').forEach(button => button.onclick = () => insertMarkup(button.dataset.insert));
   $('#save-post').textContent = state.editorDirty ? '保存更改 ●' : `保存${label}`;
-  $('#editor-status').textContent = state.editorDirty ? '未保存 · 已备份本机草稿' : '所有更改已保存';
+  $('#editor-status').textContent = state.editorDirty ? '未保存更改' : '所有更改已保存';
   schedulePreview(0);
   document.querySelectorAll('[data-editor-tab]').forEach(button => button.onclick = () => {
     const preview = button.dataset.editorTab === 'preview';
@@ -149,6 +215,7 @@ function editorPage() {
   if (post.kind === 'draft') $('#publish-draft').onclick = () => requestPublish(post.path);
 }
 function insertAtCursor(text, selectStart = 0, selectEnd = 0) {
+  if (state.saving || !$('#editor')) return;
   if ($('#editor').classList.contains('hidden')) document.querySelector('[data-editor-tab="write"]').click();
   const editor = $('#editor');
   const start = state.editorSelection?.start ?? editor.value.length;
@@ -213,7 +280,7 @@ async function uploadImages(files) {
     }
     if (!$('#media-library')?.classList.contains('hidden')) loadMediaLibrary();
   } catch (error) { toast(`上传失败：${error.message}`); }
-  finally { state.uploading = false; button.disabled = false; $('#editor-status').textContent = state.editorDirty ? '未保存 · 已备份本机草稿' : '所有更改已保存'; }
+  finally { state.uploading = false; button.disabled = false; if ($('#editor-status')) $('#editor-status').textContent = state.editorDirty ? '未保存更改' : '所有更改已保存'; }
 }
 function configPage() {
   if (!state.config) return;
@@ -224,17 +291,18 @@ function configPage() {
     <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} 配置"></textarea></section><div class="hint-card">保存前请确认 ${format} 语法正确。HexoStudio 会保留原有注释和字段，不会重新格式化配置。</div>`;
   $('#scope').value = config.scope;
   $('#scope').onchange = async event => { const selected = event.target.value; if (!await loadConfig(selected)) event.target.value = config.scope; };
-  $('#config-editor').value = config.content;
-  $('#config-editor').oninput = () => { state.configDirty = $('#config-editor').value !== state.config.content; $('#save-config').textContent = state.configDirty ? '保存配置 ●' : '保存配置'; };
+  $('#config-editor').value = state.configBuffer ?? config.content;
+  $('#config-editor').oninput = () => { state.configBuffer = $('#config-editor').value; state.configDirty = state.configBuffer !== state.config.content; $('#save-config').textContent = state.configDirty ? '保存配置 ●' : '保存配置'; };
   $('#save-config').textContent = state.configDirty ? '保存配置 ●' : '保存配置';
   $('#save-config').onclick = saveConfig;
 }
 function deployPage() {
   $('#view').innerHTML = `${pageHead('PUBLISH WORKFLOW', '构建与部署', '运行当前 Hexo 项目中已安装的本地命令。')}
     <div class="command-grid"><button class="command-card" data-command="clean"><span class="command-icon">${icon('settings')}</span><strong>清理缓存</strong><small>hexo clean · 清理生成文件与缓存</small></button><button class="command-card" data-command="generate"><span class="command-icon">${icon('pages')}</span><strong>生成静态站点</strong><small>hexo generate · 输出到 public 目录</small></button><button class="command-card" data-command="deploy"><span class="command-icon">${icon('rocket')}</span><strong>部署博客</strong><small>hexo deploy · 使用项目当前部署配置</small></button></div>
-    <section class="panel"><div class="panel-title"><h3>运行日志</h3><button id="clear-log">清空日志</button></div><div id="terminal" class="terminal">准备就绪。选择上方操作以运行 Hexo 命令。</div></section>`;
-  document.querySelectorAll('[data-command]').forEach(button => button.onclick = () => runCommand(button.dataset.command));
-  $('#clear-log').onclick = () => $('#terminal').textContent = '日志已清空。';
+    <section class="panel"><div class="panel-title"><h3>运行日志</h3><button id="clear-log">清空日志</button></div><div id="terminal" class="terminal" role="log" aria-label="构建日志">${escapeHTML(state.commandLog || '准备就绪。选择上方操作以运行 Hexo 命令。')}</div></section>`;
+  document.querySelectorAll('[data-command]').forEach(button => { button.disabled = Boolean(state.busy); button.onclick = () => runCommand(button.dataset.command); });
+  $('#clear-log').disabled = Boolean(state.busy);
+  $('#clear-log').onclick = () => { state.commandLog = ''; $('#terminal').textContent = '日志已清空。'; };
 }
 function gitPage() {
   const git = state.git;
@@ -246,6 +314,7 @@ function gitPage() {
     <section class="panel git-summary"><div><small>远端仓库</small><strong>${escapeHTML(git.remote || '未配置 origin')}</strong></div><div><small>连接方式</small><strong>${git.managed ? 'Token 连接' : '本机 Git 仓库'}</strong></div></section>
     <section class="panel git-files"><div class="panel-title"><h3>文件变更</h3><span class="muted">${staged} 个已暂存</span></div>${changed ? git.changes.map(item => `<div class="git-file"><input type="checkbox" data-git-path="${escapeHTML(item.path)}" aria-label="暂存 ${escapeHTML(item.path)}" ${item.unstaged ? '' : 'disabled'}><span class="git-badge ${item.staged ? 'staged' : ''}">${escapeHTML(item.index)}</span><span class="git-file-name">${escapeHTML(item.path)}${item.staged && item.unstaged ? '<small>暂存后又有修改</small>' : ''}</span><div class="git-file-actions">${item.unstaged ? `<button data-git-diff="working" data-git-file="${escapeHTML(item.path)}">工作区差异</button>` : ''}${item.staged ? `<button data-git-diff="staged" data-git-file="${escapeHTML(item.path)}">暂存差异</button><button data-git-unstage="${escapeHTML(item.path)}">取消暂存</button>` : ''}</div></div>`).join('') : '<div class="empty">工作区没有变更</div>'}<div class="git-actions"><button id="git-stage" class="secondary" ${git.changes.some(item => item.unstaged) ? '' : 'disabled'}>暂存所选文件</button></div></section>
     <section class="panel git-commit"><h3>提交已暂存变更</h3><p>只提交已暂存的版本。若文件在暂存后又被修改，工作区差异不会进入本次提交。</p><div class="git-commit-row"><input id="git-message" placeholder="填写本次提交说明" maxlength="300" value="${escapeHTML(state.gitMessage)}"><button id="git-commit" class="primary" ${staged ? '' : 'disabled'}>创建提交</button></div></section>`;
+  if (state.gitBusy) document.querySelectorAll('#view button, #view input').forEach(input => input.disabled = true);
   $('#git-refresh').onclick = loadGit;
   $('#git-fetch').onclick = () => gitSync('fetch');
   $('#git-pull').onclick = () => gitSync('pull');
@@ -256,16 +325,31 @@ function gitPage() {
   document.querySelectorAll('[data-git-diff]').forEach(button => button.onclick = () => showGitDiff(button.dataset.gitFile, button.dataset.gitDiff));
   document.querySelectorAll('[data-git-unstage]').forEach(button => button.onclick = () => gitUnstage(button.dataset.gitUnstage));
 }
-async function loadGit() { try { state.git = await api('git/status'); if (state.view === 'git') render(); } catch (error) { toast(error.message); } }
+async function loadGit() {
+  if (state.gitBusy) return;
+  const root = state.root;
+  try { const git = await api('git/status'); if (root !== state.root) return; state.git = git; if (state.view === 'git') render(); }
+  catch (error) { if (state.view === 'git' && root === state.root) viewError('Git 仓库', error.message, loadGit); }
+}
+async function gitAction(action, data, message) {
+  if (state.gitBusy) return;
+  if (state.busy) return toast('Hexo 命令正在运行，请稍候');
+  state.gitBusy = true;
+  document.querySelectorAll('#view button, #view input').forEach(input => input.disabled = true);
+  try {
+    state.git = await api(`git/${action}`, { method: 'POST', data });
+    if (action === 'commit') state.gitMessage = '';
+    if (action === 'pull') { state.config = null; state.configBuffer = null; await refreshPosts(); }
+    toast(message);
+  } catch (error) { toast(error.message, 'error'); }
+  finally { state.gitBusy = false; if (state.view === 'git') render(); }
+}
 async function gitStage() {
   const paths = [...document.querySelectorAll('[data-git-path]:checked')].map(input => input.dataset.gitPath);
   if (!paths.length) return toast('请先选择文件');
-  try { state.git = await api('git/stage', { method: 'POST', data: { paths } }); render(); toast('所选文件已暂存'); } catch (error) { toast(error.message); }
+  return gitAction('stage', { paths }, '所选文件已暂存');
 }
-async function gitUnstage(path) {
-  try { state.git = await api('git/unstage', { method: 'POST', data: { path } }); render(); toast('已取消暂存，文件修改仍保留'); }
-  catch (error) { toast(error.message); }
-}
+async function gitUnstage(path) { return gitAction('unstage', { path }, '已取消暂存，文件修改仍保留'); }
 async function showGitDiff(path, area) {
   modal(`<h2 id="modal-title">${area === 'staged' ? '暂存差异' : '工作区差异'}</h2><p>${escapeHTML(path)}</p><pre id="git-diff-content" class="git-diff-content">正在读取差异…</pre><div class="actions"><button id="close-diff" class="secondary">关闭</button></div>`);
   $('#close-diff').onclick = closeModal;
@@ -282,27 +366,22 @@ async function showGitDiff(path, area) {
 }
 async function gitCommit() {
   const message = $('#git-message').value.trim();
-  try { state.git = await api('git/commit', { method: 'POST', data: { message } }); state.gitMessage = ''; render(); toast('提交已创建，可以推送到远端'); } catch (error) { toast(error.message); }
+  if (!message) { toast('请填写提交说明'); $('#git-message').focus(); return; }
+  return gitAction('commit', { message }, '提交已创建，可以推送到远端');
 }
 async function gitSync(action) {
-  if (state.busy) return;
-  state.busy = true;
-  for (const button of ['#git-fetch', '#git-pull', '#git-push']) if ($(button)) $(button).disabled = true;
-  try {
-    state.git = await api(`git/${action}`, { method: 'POST' });
-    if (action === 'pull') { state.config = null; await refreshPosts(); }
-    render(); toast({ fetch: '远端状态已更新', pull: '已拉取远端更新', push: '提交已推送到远端' }[action]);
-  } catch (error) { toast(error.message); }
-  finally { state.busy = false; for (const button of ['#git-fetch', '#git-pull', '#git-push']) if ($(button) && state.git?.remote) $(button).disabled = false; }
+  return gitAction(action, undefined, { fetch: '远端状态已更新', pull: '已拉取远端更新', push: '提交已推送到远端' }[action]);
 }
-function render() { updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
+function render() { if (!$('#auth-screen').classList.contains('hidden')) return; updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
 function connectionForm() {
   return `<div class="connection-tabs"><button type="button" data-connect-mode="local" class="active">本机目录</button><button type="button" data-connect-mode="remote">GitHub / GitLab</button></div>
     <div id="local-fields" class="connection-fields"><p>输入包含 <code>_config.yml</code> 与 <code>source/_posts</code> 的项目目录。</p><label for="root-input">Hexo 项目目录</label><input id="root-input" placeholder="/Users/name/blog 或 C:\\Users\\name\\blog"><div class="connect-actions"><button id="connect-project" class="primary">连接本机项目</button><button id="browse-project" class="secondary hidden">浏览目录…</button></div></div>
-    <div id="remote-fields" class="connection-fields hidden"><p>用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。</p><div class="connection-grid"><div><label for="remote-provider">服务商</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">仓库</label><input id="remote-repo" placeholder="username/repo 或 HTTPS 地址" autocomplete="off"></div><div><label for="remote-token">访问 Token</label><input id="remote-token" type="password" placeholder="有仓库读写权限的 Token" autocomplete="off"></div><div><label for="remote-branch">项目分支</label><input id="remote-branch" placeholder="留空使用默认分支" autocomplete="off"></div><div class="full"><label for="remote-path">博客路径</label><input id="remote-path" placeholder="留空为仓库根目录；例如 blog" autocomplete="off"></div></div><button id="connect-remote" class="primary">连接远端仓库</button><p class="secret-note">Token 保存在本机设置文件中，不写入 Git 远端地址。</p></div>`;
+    <div id="remote-fields" class="connection-fields hidden"><p>用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。</p><div class="connection-grid"><div><label for="remote-provider">服务商</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">仓库</label><input id="remote-repo" placeholder="username/repo 或 HTTPS 地址" autocomplete="off"></div><div><label for="remote-token">访问 Token</label><input id="remote-token" type="password" placeholder="有仓库读写权限的 Token" autocomplete="off"></div><div class="full"><details class="advanced-options"><summary>更多选项 · 分支与博客路径</summary><div><label for="remote-branch">项目分支</label><input id="remote-branch" placeholder="留空使用默认分支" autocomplete="off"></div><div class="full"><label for="remote-path">博客路径</label><input id="remote-path" placeholder="留空为仓库根目录；例如 blog" autocomplete="off"></div></details></div></div><button id="connect-remote" class="primary">连接远端仓库</button><p class="secret-note">Token 保存在本机设置文件中，不写入 Git 远端地址。</p></div><p id="connection-error" class="form-error hidden" role="alert"></p>`;
 }
 function bindConnectionForm() {
   document.querySelectorAll('[data-connect-mode]').forEach(button => button.onclick = () => {
+    if (state.connecting) return;
+    $('#connection-error').classList.add('hidden');
     const remote = button.dataset.connectMode === 'remote';
     document.querySelectorAll('[data-connect-mode]').forEach(tab => tab.classList.toggle('active', tab === button));
     $('#local-fields').classList.toggle('hidden', remote);
@@ -316,34 +395,65 @@ function bindConnectionForm() {
 function onboarding() {
   $('#app').classList.add('hidden');
   $('#setup-blog-screen').classList.remove('hidden');
-  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="eyebrow">HEXOSTUDIO</div><h1>连接你的博客</h1><p>管理员已就绪，连接博客后即可开始管理。</p><ol class="auth-steps" aria-label="初始化进度"><li>1 · 数据库 ✓</li><li>2 · 管理员 ✓</li><li class="active" aria-current="step">3 · 博客</li></ol>${connectionForm()}</section>`;
+  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="eyebrow">HEXOSTUDIO</div><h1>连接你的博客</h1><p>管理员已就绪，连接博客后即可开始管理。</p><ol class="auth-steps" aria-label="初始化进度"><li>1 · 数据库 ✓</li><li>2 · 管理员 ✓</li><li class="active" aria-current="step">3 · 博客</li></ol>${connectionForm()}<button id="setup-logout" class="setup-exit">退出登录</button></section>`;
   bindConnectionForm();
+  $('#setup-logout').onclick = () => { if (!state.connecting) $('#logout').click(); };
 }
-async function connectProject() {
-  const path = $('#root-input')?.value.trim();
-  if (!canLeaveEditor() || !canLeaveConfig()) return;
-  try { const result = await api('project', { method: 'POST', data: { path } }); state.root = result.root; state.site = result.site; state.connection = { type: 'local' }; state.git = null; state.config = null; state.configDirty = false; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all'; await refreshPosts(); closeModal(); navigate('dashboard'); toast('项目已连接'); }
-  catch (error) { toast(error.message); }
+function connectionError(message) {
+  const error = $('#connection-error');
+  if (error) { error.textContent = message; error.classList.remove('hidden'); } else toast(message, 'error');
 }
-async function connectRemote() {
+async function connectBlog(remote) {
+  if (state.connecting) return;
+  if (state.busy || state.gitBusy) return toast('当前操作完成后才能切换项目');
   if (!canLeaveEditor() || !canLeaveConfig()) return;
-  const button = $('#connect-remote'); button.disabled = true; button.textContent = '正在连接…';
+  const button = $(remote ? '#connect-remote' : '#connect-project');
+  const data = remote ? { provider: $('#remote-provider').value, repository: $('#remote-repo').value.trim(), token: $('#remote-token').value.trim(), branch: $('#remote-branch').value.trim(), blogPath: $('#remote-path').value.trim() } : { path: $('#root-input').value.trim() };
+  if (remote ? !data.repository || !data.token : !data.path) {
+    connectionError(remote ? '请填写仓库地址和访问 Token。' : '请先填写 Hexo 项目目录。'); return;
+  }
+  $('#connection-error').classList.add('hidden');
+  state.connecting = true;
+  const original = button.textContent;
+  const controls = [...document.querySelectorAll('.connection-fields input,.connection-fields select,.connection-fields button,[data-connect-mode]')];
+  controls.forEach(control => control.disabled = true); button.textContent = remote ? '正在连接仓库…' : '正在连接…';
   try {
-    const data = { provider: $('#remote-provider').value, repository: $('#remote-repo').value.trim(), token: $('#remote-token').value.trim(), branch: $('#remote-branch').value.trim(), blogPath: $('#remote-path').value.trim() };
-    const result = await api('remote/connect', { method: 'POST', data });
-    state.root = result.root; state.site = result.site; state.connection = result.connection; state.git = null; state.config = null; state.configDirty = false; state.current = null; state.contentKind = 'post'; state.search = ''; state.filter = 'all';
-    await refreshPosts(); closeModal(); navigate('dashboard'); toast('远端仓库已连接');
-  } catch (error) { toast(error.message); }
-  finally { if (button.isConnected) { button.disabled = false; button.textContent = '连接远端仓库'; } }
+    const result = await api(remote ? 'remote/connect' : 'project', { method: 'POST', data });
+    state.root = result.root; state.site = result.site; state.connection = result.connection || { type: 'local' };
+    state.git = null; state.config = null; state.configBuffer = null; state.configDirty = false;
+    state.current = null; state.editorDirty = false; state.contentKind = 'post'; state.lists = {};
+    state.posts = []; state.drafts = []; state.pages = []; state.commandLog = '';
+    let refreshError;
+    try { await refreshPosts(); } catch (error) { refreshError = error; }
+    state.connecting = false; closeModal(); state.view = 'dashboard'; render();
+    toast(refreshError ? `项目已连接，内容刷新失败：${refreshError.message}。请在列表中重试刷新。` : '博客已连接，可以开始创作了', refreshError ? 'error' : 'success');
+  } catch (error) { connectionError(error.message); }
+  finally { state.connecting = false; controls.forEach(control => { if (control.isConnected) control.disabled = false; }); if (button.isConnected) button.textContent = original; }
 }
-function showProjectModal() { modal(`<h2 id="modal-title">切换 Hexo 项目</h2>${connectionForm()}<div class="actions"><button class="secondary" id="cancel-modal">取消</button></div>`); bindConnectionForm(); $('#cancel-modal').onclick = closeModal; }
-async function chooseDirectory() { const selected = await window.hexoStudio?.selectDirectory(); if (selected) $('#root-input').value = selected; }
+async function connectProject() { return connectBlog(false); }
+async function connectRemote() { return connectBlog(true); }
+function showProjectModal() {
+  if (state.busy || state.gitBusy) return toast('当前操作完成后才能切换项目');
+  modal(`<h2 id="modal-title">切换 Hexo 项目</h2>${connectionForm()}<div class="actions"><button class="secondary" id="cancel-modal">取消</button></div>`);
+  bindConnectionForm(); $('#cancel-modal').onclick = closeModal;
+}
+async function chooseDirectory() { const selected = await window.hexoStudio?.selectDirectory(); if (selected && $('#root-input')) $('#root-input').value = selected; }
 function localDateTime() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`; }
-function showNewPost(kind = 'post') { if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? '草稿' : state.newKind === 'page' ? '页面' : '文章'; const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? 'source/页面路径/index.md' : 'source/_posts'; modal(`<h2 id="modal-title">新建${label}</h2><p>给${label}取个名字，HexoStudio 会在 ${folder} 中创建 Markdown 文件。</p><label for="new-title">${label}标题</label><input id="new-title" placeholder="写下${label}标题"><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="primary" id="create-post">创建并编辑</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
-async function createPost() { try { const kind = state.newKind; const post = await api('posts', { method: 'POST', data: { title: $('#new-title').value, localDate: localDateTime(), kind } }); closeModal(); await refreshPosts(); await openPost(post.path, kind, true); toast(kind === 'draft' ? '草稿已创建' : kind === 'page' ? '页面已创建' : '文章已创建'); } catch (error) { toast(error.message); } }
-async function refreshPosts() { const [posts, drafts, pages] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } }), api('posts', { params: { kind: 'page' } })]); state.posts = posts.posts; state.drafts = drafts.posts; state.pages = pages.posts; }
+function showNewPost(kind = 'post') { if (state.gitBusy) return toast('Git 操作正在进行，请稍候'); if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? '草稿' : state.newKind === 'page' ? '页面' : '文章'; const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? 'source/页面路径/index.md' : 'source/_posts'; modal(`<h2 id="modal-title">新建${label}</h2><p>给${label}取个名字，HexoStudio 会在 ${folder} 中创建 Markdown 文件。</p><label for="new-title">${label}标题</label><input id="new-title" placeholder="写下${label}标题"><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="primary" id="create-post">创建并编辑</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
+async function createPost() {
+  const title = $('#new-title').value.trim();
+  if (!title) { toast('请填写标题'); $('#new-title').focus(); return; }
+  return withButton($('#create-post'), async () => {
+    const kind = state.newKind;
+    const post = await api('posts', { method: 'POST', data: { title, localDate: localDateTime(), kind } });
+    closeModal();
+    try { await refreshPosts(); } catch (error) { toast(`内容已创建，列表刷新失败：${error.message}`, 'error'); }
+    await openPost(post.path, kind, true);
+  }, '正在创建…');
+}
+async function refreshPosts() { const root = state.root; const [posts, drafts, pages] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } }), api('posts', { params: { kind: 'page' } })]); if (root !== state.root) return; state.posts = posts.posts; state.drafts = drafts.posts; state.pages = pages.posts; }
 async function openPost(path, kind = 'post', skipGuard = false) {
-  if (!skipGuard && state.view === 'editor' && !canLeaveEditor()) return;
+  if (!skipGuard && ((state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig()))) return;
   try {
     const post = await api('post', { params: { path, kind } });
     state.current = post;
@@ -354,18 +464,19 @@ async function openPost(path, kind = 'post', skipGuard = false) {
     state.metadataBase = metadataValues(post.meta);
     state.metadataValues = { ...state.metadataBase };
     state.editorDirty = false;
-    navigate('editor');
+    state.view = 'editor'; render();
     const draft = readDraft(path, kind);
-    if (draft?.content && (draft.content !== post.content || (draft.metadataValues && JSON.stringify(draft.metadataValues) !== JSON.stringify(state.metadataBase)))) {
+    if (typeof draft?.content === 'string' && (draft.content !== post.content || (draft.metadataValues && JSON.stringify(draft.metadataValues) !== JSON.stringify(state.metadataBase)))) {
       const stale = draft.modified !== post.modified;
       modal(`<h2 id="modal-title">发现未保存草稿</h2><p>这篇文章在本机留有未保存内容。${stale ? '磁盘文件后来发生了变化；恢复后保存时会先提示冲突。' : '可以继续编辑草稿，或使用磁盘上的版本。'}</p><div class="actions"><button class="secondary" id="discard-draft">使用磁盘版本</button><button class="primary" id="restore-draft">恢复草稿</button></div>`);
       $('#discard-draft').onclick = () => { clearDraft(path, kind); closeModal(); };
       $('#restore-draft').onclick = () => { state.editorBuffer = draft.content; state.editorBaseModified = draft.modified; state.metadataValues = { ...state.metadataBase, ...(draft.metadataValues || {}) }; state.editorDirty = true; editorPage(); closeModal(); };
     }
-  } catch (error) { toast(error.message); }
+  } catch (error) { toast(error.message, 'error'); }
 }
 async function savePost() {
   if (!state.current || state.saving) return false;
+  if (state.uploading) { toast('图片正在上传，完成后再保存'); return false; }
   const editor = $('#editor');
   const content = editor.value;
   const scroll = editor.scrollTop;
@@ -393,7 +504,7 @@ async function savePost() {
     if (previewActive) document.querySelector('[data-editor-tab="preview"]').click();
     toast(refreshError ? `已保存，列表刷新失败：${refreshError.message}` : updated.kind === 'draft' ? '草稿已保存' : updated.kind === 'page' ? '页面已保存' : '文章已保存');
     return true;
-  } catch (error) { toast(error.message); return false; }
+  } catch (error) { toast(error.message, 'error'); return false; }
   finally { state.saving = false; if ($('#editor') === editor) { editor.readOnly = false; $('#save-post').disabled = false; document.querySelectorAll('[data-meta]').forEach(input => input.disabled = false); } }
 }
 async function requestPublish(path) {
@@ -410,53 +521,118 @@ async function requestPublish(path) {
     try {
       const result = await api('publish', { method: 'POST', data: { path, modified: draft.modified, localDate: localDateTime() } });
       clearDraft(path, 'draft');
-      await refreshPosts();
+      let refreshError;
+      state.drafts = state.drafts.filter(item => item.path !== path);
+      try { await refreshPosts(); } catch (error) { refreshError = error; }
       closeModal();
       state.current = null;
       state.editorDirty = false;
       state.contentKind = 'post';
       state.view = 'posts';
       render();
-      toast(`草稿已发布：${result.path}`);
-    } catch (error) { toast(error.message); $('#confirm-publish').disabled = false; }
+      toast(refreshError ? `草稿已发布，列表刷新失败：${refreshError.message}` : `草稿已发布：${result.path}`, refreshError ? 'error' : 'success');
+    } catch (error) { toast(error.message, 'error'); if ($('#confirm-publish')) $('#confirm-publish').disabled = false; }
   };
 }
-function confirmDelete(path, kind = 'post') { const label = kind === 'draft' ? '草稿' : kind === 'page' ? '页面' : '文章'; modal(`<h2 id="modal-title">删除${label}？</h2><p>这会从 Hexo 源码目录删除 <strong>${escapeHTML(path)}</strong>。此操作无法在后台撤销。</p><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="secondary danger" id="confirm-delete">删除${label}</button></div>`); $('#cancel-modal').onclick = closeModal; $('#confirm-delete').onclick = async () => { try { await api('post', { method: 'DELETE', params: { path, kind } }); clearDraft(path, kind); closeModal(); await refreshPosts(); render(); toast(`${label}已删除`); } catch (error) { toast(error.message); } }; }
-function canLeaveConfig() { return !state.configDirty || window.confirm('配置还有未保存的改动，确定放弃吗？'); }
+function confirmDelete(path, kind = 'post') {
+  const label = kind === 'draft' ? '草稿' : kind === 'page' ? '页面' : '文章';
+  modal(`<h2 id="modal-title">删除${label}？</h2><p>这会从 Hexo 源码目录删除 <strong>${escapeHTML(path)}</strong>。此操作无法在后台撤销。</p><div class="actions"><button class="secondary" id="cancel-modal">取消</button><button class="secondary danger" id="confirm-delete">删除${label}</button></div>`);
+  $('#cancel-modal').onclick = closeModal;
+  $('#confirm-delete').onclick = () => withButton($('#confirm-delete'), async () => {
+    await api('post', { method: 'DELETE', params: { path, kind } });
+    clearDraft(path, kind);
+    const key = kind === 'draft' ? 'drafts' : kind === 'page' ? 'pages' : 'posts';
+    state[key] = state[key].filter(item => item.path !== path);
+    closeModal();
+    let refreshError;
+    try { await refreshPosts(); } catch (error) { refreshError = error; }
+    render();
+    toast(refreshError ? `${label}已删除，列表刷新失败：${refreshError.message}` : `${label}已删除`, refreshError ? 'error' : 'success');
+  }, '正在删除…');
+}
+function canLeaveConfig() {
+  if (state.configSaving) { toast('配置正在保存，请稍候'); return false; }
+  if (!state.configDirty) return true;
+  if (!window.confirm('配置还有未保存的改动，确定放弃吗？')) return false;
+  state.configDirty = false; state.configBuffer = state.config?.content;
+  return true;
+}
 async function loadConfig(scope = 'site') {
   if (state.view === 'config' && !canLeaveConfig()) return false;
-  try { state.config = await api('config', { params: { scope } }); state.configDirty = false; state.view = 'config'; render(); return true; }
-  catch (error) { toast(error.message); return false; }
+  const version = state.configLoad = (state.configLoad || 0) + 1;
+  const root = state.root;
+  state.view = 'config'; updateShell();
+  $('#view').innerHTML = `${pageHead('SITE SETTINGS', '站点配置', '正在读取配置…')}`;
+  try {
+    const config = await api('config', { params: { scope } });
+    if (version !== state.configLoad || root !== state.root || state.view !== 'config') return false;
+    state.config = config; state.configBuffer = config.content; state.configDirty = false;
+    render(); return true;
+  } catch (error) {
+    if (version === state.configLoad && state.view === 'config') viewError('站点配置', error.message, () => loadConfig(scope));
+    return false;
+  }
 }
 async function saveConfig() {
-  const button = $('#save-config');
-  button.disabled = true;
+  if (state.configSaving) return;
+  const button = $('#save-config'); const editor = $('#config-editor');
+  if (!editor || !state.config) return;
+  const config = state.config; const content = editor.value;
+  state.configSaving = true; button.disabled = true; editor.readOnly = true;
+  $('#scope').disabled = true; button.textContent = '正在保存…';
   try {
-    const content = $('#config-editor').value;
-    const result = await api('config', { method: 'PUT', data: { scope: state.config.scope, content, modified: state.config.modified } });
-    state.config.content = content;
-    state.config.modified = result.modified;
-    state.configDirty = false;
-    button.textContent = '保存配置';
+    const result = await api('config', { method: 'PUT', data: { scope: config.scope, content, modified: config.modified } });
+    config.content = content; config.modified = result.modified;
+    state.configBuffer = content; state.configDirty = false;
     toast('配置已保存');
-  } catch (error) { toast(error.message); }
-  finally { button.disabled = false; }
+  } catch (error) { toast(error.message, 'error'); }
+  finally {
+    state.configSaving = false;
+    if (button.isConnected) { button.disabled = false; button.textContent = state.configDirty ? '保存配置 ●' : '保存配置'; editor.readOnly = false; $('#scope').disabled = false; }
+  }
+}
+function appendCommandLog(text) {
+  state.commandLog = ((state.commandLog || '') + text).slice(-200000);
+  const terminal = $('#terminal');
+  if (terminal) { terminal.textContent = state.commandLog; terminal.scrollTop = terminal.scrollHeight; }
 }
 async function runCommand(action) {
   if (state.busy) return toast('已有命令正在运行');
+  if (state.gitBusy) return toast('Git 操作正在进行，请稍候');
   if (action === 'deploy' && !window.confirm('将按当前 Hexo 配置部署博客，确定继续？')) return;
-  state.busy = true;
-  const terminal = $('#terminal'); terminal.textContent = `$ hexo ${action}\n`;
-  document.querySelectorAll('[data-command]').forEach(button => button.disabled = true);
+  state.busy = true; state.commandLog = `$ hexo ${action}\n`; deployPage();
+  let exitCode = null;
   try {
     const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf || '' }, body: JSON.stringify({ action }) });
     if (!response.ok) { const result = await response.json(); if (response.status === 401) { state.csrf = null; showAuth(true); } throw new Error(result.error || '命令运行失败'); }
     const reader = response.body.getReader(); const decoder = new TextDecoder(); let pending = '';
-    while (true) { const { value, done } = await reader.read(); if (done) break; pending += decoder.decode(value, { stream: true }); const lines = pending.split('\n'); pending = lines.pop(); for (const line of lines) { if (!line) continue; const item = JSON.parse(line); terminal.textContent += item.type === 'exit' ? `\n进程结束，退出码 ${item.code}\n` : item.text; terminal.scrollTop = terminal.scrollHeight; } }
-  } catch (error) { terminal.textContent += `\n错误：${error.message}`; }
-  finally { state.busy = false; document.querySelectorAll('[data-command]').forEach(button => button.disabled = false); }
+    const consume = line => {
+      if (!line.trim()) return;
+      const item = JSON.parse(line);
+      if (item.type === 'exit') { exitCode = item.code; appendCommandLog(`\n进程结束，退出码 ${item.code}\n`); }
+      else appendCommandLog(item.text || '');
+    };
+    while (true) {
+      const { value, done } = await reader.read();
+      pending += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      const lines = pending.split('\n'); pending = lines.pop(); lines.forEach(consume);
+      if (done) { if (pending) consume(pending); break; }
+    }
+    if (exitCode === null) throw new Error('连接已中断，未收到命令完成结果，请检查日志');
+    toast(exitCode === 0 ? 'Hexo 命令执行完成' : `命令未成功，退出码 ${exitCode}，请查看日志`, exitCode === 0 ? 'success' : 'error');
+  } catch (error) { appendCommandLog(`\n错误：${error.message}\n`); toast(error.message, 'error'); }
+  finally { state.busy = false; if (state.view === 'deploy' && $('#terminal')) deployPage(); }
 }
-async function navigate(view) { if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; } if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return; state.view = view; if (view === 'config' && !state.config) return loadConfig(); if (view === 'git') { render(); return loadGit(); } render(); }
+async function navigate(view) {
+  if (state.gitBusy) { toast('Git 操作正在进行，请稍候'); return; }
+  if (view === state.view && !(view === 'config' && !state.config)) return;
+  if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; }
+  if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return;
+  state.view = view;
+  if (view === 'config' && !state.config) return loadConfig();
+  if (view === 'git') { render(); return loadGit(); }
+  render();
+}
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
 function storageFields(type, prefix) {
@@ -514,6 +690,8 @@ function showAuth(configured) {
   $('#setup-blog-screen').classList.add('hidden');
   $('#setup-blog-screen').replaceChildren();
   $('#auth-screen').classList.remove('hidden');
+  state.authReady = false;
+  $('#auth-form').noValidate = false;
   $('#auth-form').reset();
   $('#auth-error').classList.add('hidden');
   $('#auth-form').classList.toggle('auth-setup', !configured);
@@ -521,6 +699,8 @@ function showAuth(configured) {
   storageFields($('#auth-storage-type').value, 'auth');
   $('#auth-confirm').required = !configured;
   $('#auth-confirm').disabled = configured;
+  $('#auth-username').pattern = configured ? '.*' : '[\\p{L}\\p{N}_\\-]{3,32}';
+  $('#auth-username').title = '3–32 位字母、数字、下划线或连字符';
   $('#auth-password').minLength = configured ? 1 : 12;
   $('#auth-password').placeholder = configured ? '' : '至少 12 个字符';
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
@@ -542,6 +722,7 @@ $('#auth-form').onsubmit = async event => {
   event.preventDefault();
   if ($('#auth-submit').disabled) return;
   const mode = $('#auth-form').dataset.mode;
+  if (state.authReady) { await withButton($('#auth-submit'), loadWorkspace, '正在加载…'); return; }
   const storageStep = mode === 'setup' && $('#auth-form').dataset.step === 'storage';
   const username = $('#auth-username').value.trim();
   const password = $('#auth-password').value;
@@ -565,6 +746,8 @@ $('#auth-form').onsubmit = async event => {
     }
     const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? { storage: storageValue('auth') } : {}) } });
     state.csrf = result.csrf;
+    state.authReady = true;
+    $('#auth-form').noValidate = true;
     $('#auth-password').value = '';
     $('#auth-confirm').value = '';
     storageFields($('#auth-storage-type').value, 'auth');
@@ -576,13 +759,15 @@ $('#auth-form').onsubmit = async event => {
     $('#auth-submit').disabled = false;
     $('#auth-back').disabled = false;
     $('#auth-storage-row').disabled = $('#auth-form').dataset.step !== 'storage';
-    if (!storageStep || $('#auth-form').dataset.step === 'storage') $('#auth-submit').textContent = label;
+    if (state.authReady) { $('#auth-submit').textContent = '继续进入工作台'; $('#auth-back').disabled = true; $('#auth-account-fields').disabled = true; }
+    else if (!storageStep || $('#auth-form').dataset.step === 'storage') $('#auth-submit').textContent = label;
   }
 };
 $('#logout').onclick = async () => {
+  if (state.busy || state.gitBusy) return toast('当前操作完成后再退出');
   if (!canLeaveEditor() || !canLeaveConfig()) return;
   try { await api('auth/logout', { method: 'POST' }); }
-  catch (error) { return toast(error.message); }
+  catch (error) { return toast(error.message, 'error'); }
   state.csrf = null;
   state.root = null;
   state.posts = [];
@@ -590,7 +775,7 @@ $('#logout').onclick = async () => {
   state.pages = [];
   state.current = null;
   state.config = null;
-  state.configDirty = false;
+  state.configDirty = false; state.configBuffer = null; state.commandLog = ''; state.lists = {};
   state.editorBuffer = null;
   $('#view').replaceChildren();
   showAuth(true);
@@ -613,13 +798,13 @@ $('#account-settings').onclick = () => {
       $('#view').replaceChildren();
       showAuth(true);
       toast('密码已更新，请重新登录');
-    } catch (error) { toast(error.message); submit.disabled = false; }
+    } catch (error) { toast(error.message, 'error'); submit.disabled = false; }
   };
 };
 $('#account-storage').onclick = async () => {
   let current;
   try { current = (await api('auth/storage')).storage; }
-  catch (error) { return toast(error.message); }
+  catch (error) { return toast(error.message, 'error'); }
   modal('<h2 id="modal-title">账号存储</h2><p id="current-storage"></p><form id="storage-form"><label>目标存储<select id="move-storage-type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option></select></label><div id="move-storage-fields"></div><label>当前管理员密码<input id="move-password" type="password" autocomplete="current-password" required></label><p>切换后需要重新登录。原数据库中的账号记录会保留，便于手动回退。</p><div class="actions"><button id="move-test" type="button" class="secondary">测试连接</button><button id="move-submit" type="submit" class="primary">迁移并退出</button></div></form>');
   $('#current-storage').textContent = `当前：${current.type} · ${current.label}`;
   $('#move-storage-type').value = ['postgres', 'mysql', 'mongodb'].includes(current.type) ? current.type : 'postgres';
@@ -628,8 +813,8 @@ $('#account-storage').onclick = async () => {
   $('#move-test').onclick = async () => {
     $('#move-test').disabled = true;
     try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('move') } }); toast('存储连接成功'); }
-    catch (error) { toast(error.message); }
-    finally { $('#move-test').disabled = false; }
+    catch (error) { toast(error.message, 'error'); }
+    finally { if ($('#move-test')) $('#move-test').disabled = false; }
   };
   $('#storage-form').onsubmit = async event => {
     event.preventDefault();
@@ -637,14 +822,26 @@ $('#account-storage').onclick = async () => {
     try {
       await api('auth/storage/migrate', { method: 'POST', data: { password: $('#move-password').value, storage: storageValue('move') } });
       closeModal(); state.csrf = null; $('#view').replaceChildren(); showAuth(true); toast('账号已迁移，请重新登录');
-    } catch (error) { toast(error.message); $('#move-submit').disabled = false; }
+    } catch (error) { toast(error.message, 'error'); if ($('#move-submit')) $('#move-submit').disabled = false; }
   };
 };
-$('#top-new').onclick = () => showNewPost(state.view === 'pages' ? 'page' : 'post');
+$('#top-new').onclick = () => showNewPost((state.view === 'pages' || (state.view === 'editor' && state.current?.kind === 'page')) ? 'page' : 'post');
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = event => { if (event.target === $('#modal')) closeModal(); };
-document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && state.view === 'editor') { event.preventDefault(); savePost(); } });
-window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
+document.addEventListener('keydown', event => {
+  const modalOpen = !$('#modal').classList.contains('hidden');
+  if (event.key === 'Escape' && modalOpen) closeModal();
+  if (event.key === 'Tab' && modalOpen) {
+    const focusable = [...$('#modal').querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary')].filter(el => el.getClientRects().length);
+    const first = focusable[0], last = focusable.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's' && !modalOpen) {
+    if (state.view === 'editor' || state.view === 'config') { event.preventDefault(); state.view === 'editor' ? savePost() : saveConfig(); }
+  }
+});
+window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.busy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
     const status = await api('auth/status');

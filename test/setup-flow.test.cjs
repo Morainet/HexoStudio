@@ -30,13 +30,14 @@ function fixture() {
     document: { createElement: element, querySelectorAll: () => [] },
     api: async (name, options) => {
       calls.push({ name, data: options?.data });
-      if (fail) throw new Error('数据库连接失败');
+      if (fail === true || fail === name) throw new Error('数据库连接失败');
       if (name === 'status') return { root: null, mode: 'web' };
       return { csrf: 'test-session' };
     },
-    refreshPosts: async () => {}, render: () => { renders++; }
+    toast: () => {}, refreshPosts: async () => {}, render: () => { renders++; }
   });
   const source = fs.readFileSync(path.join(__dirname, '../public/app.js'), 'utf8');
+  vm.runInContext(source.slice(source.indexOf('async function withButton('), source.indexOf('function viewError(')), context);
   vm.runInContext(source.slice(source.indexOf('function storageFields('), source.indexOf("$('#logout').onclick")), context);
   return { $, calls, state, show: context.showAuth, fail(value) { fail = value; }, get renders() { return renders; }, submit: () => $('#auth-form').onsubmit({ preventDefault() {} }) };
 }
@@ -94,4 +95,19 @@ test('existing accounts go directly to login without database validation', async
   await f.submit();
   assert.deepEqual(f.calls.map(call => call.name), ['auth/login', 'status']);
   assert.equal(f.calls[0].data.storage, undefined);
+});
+
+test('workspace loading can retry after account creation without recreating the account', async () => {
+  const f = fixture(); f.show(false);
+  f.$('#auth-storage-url').value = 'postgresql://test@localhost/test';
+  await f.submit();
+  f.$('#auth-username').value = 'admin';
+  f.$('#auth-password').value = f.$('#auth-confirm').value = 'test-password-long';
+  f.fail('status'); await f.submit();
+  assert.equal(f.state.authReady, true);
+  assert.equal(f.$('#auth-form').noValidate, true);
+  f.fail(false); await f.submit();
+  assert.equal(f.calls.filter(call => call.name === 'auth/setup').length, 1);
+  assert.equal(f.calls.filter(call => call.name === 'status').length, 2);
+  assert.equal(f.renders, 1);
 });
