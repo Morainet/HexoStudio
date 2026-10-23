@@ -1,0 +1,55 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const { smokeCli } = require('./cli-smoke.cjs');
+
+async function verify() {
+  const root = path.resolve(__dirname, '..');
+  const npm = process.env.npm_execpath;
+  if (!npm) throw new Error('Run this check with npm run test:package.');
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'hexostudio-npm-'));
+  const run = (args, cwd) => {
+    const result = spawnSync(process.execPath, [npm, ...args], {
+      cwd, encoding: 'utf8', timeout: 180000, maxBuffer: 4 * 1024 * 1024,
+      env: { ...process.env, npm_config_cache: path.join(temporary, 'cache') }
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`npm ${args[0]} failed:\n${result.stderr}\n${result.stdout}`);
+    return result.stdout;
+  };
+  try {
+    const [packed] = JSON.parse(run(['pack', '--json', '--ignore-scripts', '--pack-destination', temporary], root));
+    const names = packed.files.map(file => file.path);
+    for (const required of ['bin/hexostudio.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'LICENSE', 'README.md', 'package.json']) {
+      assert.ok(names.includes(required), `Missing package file: ${required}`);
+    }
+    for (const name of names) {
+      assert.match(name, /^(?:bin\/[^/]+\.cjs|server\/[^/]+\.cjs|public\/[^/]+\.(?:html|js|css)|docs\/[^/]+\.md|README\.md|LICENSE|package\.json)$/,
+        `Unexpected package file: ${name}`);
+    }
+    const installation = path.join(temporary, 'installation');
+    const runtime = path.join(temporary, 'runtime');
+    fs.mkdirSync(installation);
+    fs.mkdirSync(runtime);
+    fs.writeFileSync(path.join(installation, 'package.json'), JSON.stringify({ name: 'hexostudio-install-check', private: true }));
+    run(['install', path.join(temporary, packed.filename), '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], installation);
+    const installed = path.join(installation, 'node_modules', 'hexostudio');
+    const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
+    assert.equal(manifest.main, 'server/index.cjs');
+    assert.equal(manifest.bin.hexostudio, 'bin/hexostudio.cjs');
+    assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron')), false);
+    assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
+    const version = run(['exec', '--offline', '--no', '--', 'hexostudio', '--version'], installation).trim();
+    assert.equal(version, manifest.version);
+    await smokeCli(path.join(installed, manifest.bin.hexostudio), runtime);
+    const destination = path.join(root, 'dist', 'npm');
+    fs.mkdirSync(destination, { recursive: true });
+    fs.copyFileSync(path.join(temporary, packed.filename), path.join(destination, packed.filename));
+    console.log(`Verified ${packed.filename}: ${names.length} files, ${packed.size} bytes; clean install, CLI, HTTP and shutdown passed.`);
+    console.log(`Package: ${path.join(destination, packed.filename)}`);
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+}
+
+verify().catch(error => { console.error(error.message); process.exitCode = 1; });

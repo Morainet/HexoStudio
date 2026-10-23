@@ -36,3 +36,28 @@ jobs:
       - name: Audit all dependencies (including desktop runtime)
         if: matrix.node == 24
         run: npm audit --audit-level=high
+
+  package:
+    name: npm package / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run test:package
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-package-${{ matrix.os }}
+          path: dist/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 14

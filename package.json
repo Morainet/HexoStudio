@@ -1,17 +1,34 @@
 {
   "name": "hexostudio",
   "version": "0.8.0",
-  "private": true,
   "description": "A local web and desktop studio for Hexo blogs",
-  "main": "desktop/main.cjs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Morainet/HexoStudio.git"
+  },
+  "homepage": "https://github.com/Morainet/HexoStudio#readme",
+  "bugs": "https://github.com/Morainet/HexoStudio/issues",
+  "keywords": ["hexo", "blog", "cms", "markdown", "cli"],
+  "main": "server/index.cjs",
+  "bin": {
+    "hexostudio": "bin/hexostudio.cjs"
+  },
+  "files": ["bin/", "server/", "public/", "docs/*.md", "README.md", "LICENSE"],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
-    "web": "node server/index.cjs",
-    "desktop": "electron .",
+    "web": "node bin/hexostudio.cjs start",
+    "desktop": "electron desktop/main.cjs",
     "check": "node scripts/check.cjs",
     "test": "node --test",
+    "test:package": "node scripts/verify-package.cjs",
+    "prepublishOnly": "npm run check && npm test && npm run test:package && npm audit --audit-level=high",
     "package:mac": "electron-builder --mac",
     "package:win": "electron-builder --win --x64"
   },
@@ -29,6 +46,9 @@
   "build": {
     "appId": "dev.hexostudio.app",
     "productName": "HexoStudio",
+    "extraMetadata": {
+      "main": "desktop/main.cjs"
+    },
     "files": [
       "desktop/**/*",
       "server/**/*",

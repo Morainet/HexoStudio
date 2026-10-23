@@ -27,6 +27,30 @@
 
 </details>
 
+## 命令行启动
+
+安装 npm 包后使用 `hexostudio start`（无参数的 `hexostudio` 同样启动服务）。源码开发可使用 `npm run web -- <选项>`。
+
+```bash
+hexostudio start --port 4546 --root /path/to/blog
+hexostudio start --settings ./studio-settings.json
+hexostudio --help
+hexostudio --version
+```
+
+| 参数 | 作用 |
+| --- | --- |
+| `--port` / `-p` | 监听端口，默认 4545；设为 0 自动分配 |
+| `--host` | 监听 IP 或 localhost，默认 127.0.0.1 |
+| `--root` | 固定 Hexo 源码目录；省略时可在界面中选择本机或远端项目 |
+| `--settings` | 设置文件位置，默认 `~/.hexostudio.json` |
+| `--help` / `-h` | 显示帮助 |
+| `--version` / `-v` | 显示版本 |
+
+命令行参数优先于对应环境变量；相对路径以运行命令时的目录为基准。端口占用时会报错，可指定其他端口。按 Ctrl+C 停止服务。博客、管理员配置和凭据不会写入 npm 安装目录，更新 npm 包会保留这些外部数据。
+
+Token 只通过环境变量配置，不提供命令行 Token 参数。使用 `--host 0.0.0.0` 等非本机地址仍需设置 `HEXOSTUDIO_TOKEN`，并按下文配置公网入口。
+
 ## 环境变量
 
 以下变量用于启动 HexoStudio 服务：

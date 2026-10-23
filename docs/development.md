@@ -13,6 +13,7 @@
 | `npm run desktop` | 启动 Electron 桌面程序 |
 | `npm run check` | 检查前端、后端、桌面入口及测试的 JavaScript 语法 |
 | `npm test` | 运行测试 |
+| `npm run test:package` | 打包、检查文件白名单、在干净目录安装并验证 CLI 与 HTTP 服务 |
 | `npm run package:mac` | 构建 macOS 的 DMG / ZIP |
 | `npm run package:win` | 构建 Windows x64 的安装包 / 便携版 |
 
@@ -24,7 +25,7 @@
 
 | 工作流 | 触发方式 | 执行内容 |
 | --- | --- | --- |
-| CI | 分支推送、Pull Request、手动运行 | 在 Node.js 22 / 24 上安装锁定依赖、检查语法、运行测试，并扫描全部依赖 |
+| CI | 分支推送、Pull Request、手动运行 | Node.js 22 / 24 检查与测试、依赖扫描；Linux / Windows npm 包安装验证 |
 | Desktop builds | 推送 `v*` 标签、手动运行 | 先检查与测试，再构建 macOS Apple Silicon / Intel、Windows x64 安装包 |
 
 **下载测试安装包：** 选择 `Desktop builds` → `Run workflow`。完成后，在该次运行的 Artifacts 中下载对应平台的文件，保留 14 天。手动运行只生成构建产物。
@@ -44,11 +45,37 @@ git push origin v0.8.0
 
 开发与构建需要 Node.js 22.12 或更新版本。CI 和发布检查使用 `npm audit --audit-level=high`，包含 Electron 等开发依赖；检测到已知高危或严重漏洞时会失败，阻止发布任务继续。漏洞扫描不能代替代码审查和目标系统验收。
 
+## npm 包验证与发布
+
+当前包名为 `hexostudio`，许可证为 MIT。包中仅包含 CLI、网页后端、静态界面、文字文档及许可证；安装它不会安装 Electron 和桌面打包工具。桌面版继续通过 GitHub Releases 分发。
+
+```bash
+npm ci
+npm run check
+npm test
+npm run test:package
+```
+
+最后一步会在临时目录安装真实 `.tgz`，验证命令入口、从其他目录启动、页面资源、未登录接口保护和服务退出。验证通过的文件保存在 `dist/npm/hexostudio-<版本>.tgz`；GitHub CI 也会保存它供下载。
+
+首次发布需要维护者的 npm 账号和该包名的发布权限。查询时包名尚未注册，并不代表已预留。确认版本、许可证、CI 结果以及发布清单后，可手动执行：
+
+```bash
+npm login
+npm publish --dry-run
+npm publish
+```
+
+`prepublishOnly` 会依次检查语法、测试、验证安装包及扫描依赖漏洞。源码工作区必须包含完整开发依赖与测试。当前工作流不会自动发布到 npm，也不需要配置 npm Token。
+
+发布成功后，再移除 README 中「尚未首次发布」的提示。后续升级需先更新 `package.json` 与锁文件的版本，已发布的同一版本不能重复使用。
+
 ## 项目结构
 
 ```text
 HexoStudio/
 ├── .github/workflows/  # 持续检查与桌面构建、Release 草稿
+├── bin/                # npm 命令入口
 ├── scripts/            # 语法检查与发布版本验证
 ├── public/             # 共享网页界面、样式、翻译与显示偏好
 ├── server/             # HTTP API、Hexo 文件操作、Git、认证与数据库适配

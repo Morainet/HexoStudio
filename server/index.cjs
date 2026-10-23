@@ -13,9 +13,6 @@ const publicDir = path.join(__dirname, '..', 'public');
 const settingsFile = process.env.HEXOSTUDIO_SETTINGS || path.join(os.homedir(), '.hexostudio.json');
 const host = process.env.HEXOSTUDIO_HOST || '127.0.0.1';
 const token = process.env.HEXOSTUDIO_TOKEN || '';
-if (!['127.0.0.1', 'localhost', '::1'].includes(host) && !token) {
-  throw new Error('监听非本机地址时必须设置 HEXOSTUDIO_TOKEN');
-}
 
 function loadSettings() {
   try { return JSON.parse(fs.readFileSync(settingsFile, 'utf8')); }
@@ -236,10 +233,13 @@ async function handle(req, res) {
 }
 
 function startServer(port = Number(process.env.HEXOSTUDIO_PORT || 4545), bind = host) {
+  if (!['127.0.0.1', 'localhost', '::1'].includes(bind) && !token) {
+    return Promise.reject(new Error('监听非本机地址时必须设置 HEXOSTUDIO_TOKEN'));
+  }
   const server = http.createServer(handle);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(port, bind, () => resolve({ server, url: `http://${bind}:${server.address().port}` }));
+    server.listen(port, bind, () => resolve({ server, url: `http://${bind.includes(':') ? `[${bind}]` : bind}:${server.address().port}` }));
   });
 }
 

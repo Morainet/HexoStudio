@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      - run: npm run test:package
       - run: npm audit --audit-level=high
       - name: Verify release tag
         if: github.event_name == 'push'
