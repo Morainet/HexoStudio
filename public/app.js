@@ -295,7 +295,7 @@ async function gitSync(action) {
   } catch (error) { toast(error.message); }
   finally { state.busy = false; for (const button of ['#git-fetch', '#git-pull', '#git-push']) if ($(button) && state.git?.remote) $(button).disabled = false; }
 }
-function render() { updateShell(); if (!state.root) return onboarding(); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
+function render() { updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); }
 function connectionForm() {
   return `<div class="connection-tabs"><button type="button" data-connect-mode="local" class="active">本机目录</button><button type="button" data-connect-mode="remote">GitHub / GitLab</button></div>
     <div id="local-fields" class="connection-fields"><p>输入包含 <code>_config.yml</code> 与 <code>source/_posts</code> 的项目目录。</p><label for="root-input">Hexo 项目目录</label><input id="root-input" placeholder="/Users/name/blog 或 C:\\Users\\name\\blog"><div class="connect-actions"><button id="connect-project" class="primary">连接本机项目</button><button id="browse-project" class="secondary hidden">浏览目录…</button></div></div>
@@ -314,7 +314,9 @@ function bindConnectionForm() {
   if (window.hexoStudio) { $('#browse-project').classList.remove('hidden'); $('#browse-project').onclick = chooseDirectory; }
 }
 function onboarding() {
-  $('#view').innerHTML = `${pageHead('WELCOME TO HEXOSTUDIO', '连接你的 Hexo 博客', '连接本机目录，或用 Token 接入 GitHub / GitLab 仓库。')}<section class="panel connection-panel"><div class="eyebrow">STEP 01 / CONNECT</div><h2>博客源码在哪里？</h2>${connectionForm()}</section>`;
+  $('#app').classList.add('hidden');
+  $('#setup-blog-screen').classList.remove('hidden');
+  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="eyebrow">HEXOSTUDIO</div><h1>连接你的博客</h1><p>管理员已就绪，连接博客后即可开始管理。</p><ol class="auth-steps" aria-label="初始化进度"><li>1 · 数据库 ✓</li><li>2 · 管理员 ✓</li><li class="active" aria-current="step">3 · 博客</li></ol>${connectionForm()}</section>`;
   bindConnectionForm();
 }
 async function connectProject() {
@@ -493,32 +495,27 @@ function authStep(step) {
   $('#auth-account-fields').classList.toggle('hidden', storage);
   $('#auth-storage-row').disabled = !storage;
   $('#auth-storage-row').classList.toggle('hidden', !storage);
-  $('#auth-back').classList.toggle('hidden', !storage);
+  $('#auth-back').classList.toggle('hidden', !setup || storage);
   $('#auth-steps').classList.toggle('hidden', !setup);
   document.querySelectorAll('[data-auth-step]').forEach(item => {
     const active = item.dataset.authStep === (storage ? 'storage' : 'account');
     item.classList.toggle('active', active);
     if (active) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
   });
-  $('#auth-description').textContent = !setup ? '使用管理员账号继续管理博客。' : storage ? '连接用于保存管理员账号的数据库。' : '设置登录账号，开始管理你的博客。';
-  $('#auth-submit').textContent = !setup ? '登录' : storage ? '创建账号并进入' : '下一步';
+  $('#auth-title').textContent = !setup ? '登录工作台' : storage ? '连接数据库' : '设置管理员';
+  $('#auth-description').textContent = !setup ? '使用管理员账号继续管理博客。' : storage ? '先连接数据库，用于保存管理员账号。' : '数据库已连接，设置后台登录账号。';
+  $('#auth-submit').textContent = !setup ? '登录' : storage ? '验证并继续' : '创建账号并继续';
   $('#auth-error').classList.add('hidden');
   $(storage ? '#auth-storage-type' : '#auth-username').focus();
 }
-$('#auth-back').onclick = () => authStep('account');
-$('#auth-test-storage').onclick = async () => {
-  $('#auth-test-storage').disabled = true;
-  try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('auth') } }); toast('存储连接成功'); }
-  catch (error) { $('#auth-error').textContent = error.message; $('#auth-error').classList.remove('hidden'); }
-  finally { $('#auth-test-storage').disabled = false; }
-};
+$('#auth-back').onclick = () => authStep('storage');
 function showAuth(configured) {
   $('#app').classList.add('hidden');
+  $('#setup-blog-screen').classList.add('hidden');
+  $('#setup-blog-screen').replaceChildren();
   $('#auth-screen').classList.remove('hidden');
   $('#auth-form').reset();
   $('#auth-error').classList.add('hidden');
-  $('#auth-title').textContent = configured ? '登录工作台' : '创建管理员账号';
-  $('#auth-description').textContent = configured ? '使用管理员账号继续管理博客。' : '设置登录账号，开始管理你的博客。';
   $('#auth-form').classList.toggle('auth-setup', !configured);
   $('#auth-confirm-row').classList.toggle('hidden', configured);
   storageFields($('#auth-storage-type').value, 'auth');
@@ -527,9 +524,8 @@ function showAuth(configured) {
   $('#auth-password').minLength = configured ? 1 : 12;
   $('#auth-password').placeholder = configured ? '' : '至少 12 个字符';
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
-  $('#auth-submit').textContent = configured ? '登录' : '创建账号并进入';
   $('#auth-form').dataset.mode = configured ? 'login' : 'setup';
-  authStep('account');
+  authStep(configured ? 'account' : 'storage');
 }
 async function loadWorkspace() {
   const status = await api('status');
@@ -539,31 +535,49 @@ async function loadWorkspace() {
   $('#connection').textContent = status.mode === 'desktop' ? '桌面工作台' : '本地工作台';
   if (state.root) await refreshPosts();
   state.view = 'dashboard';
-  render();
   $('#auth-screen').classList.add('hidden');
-  $('#app').classList.remove('hidden');
+  render();
 }
 $('#auth-form').onsubmit = async event => {
   event.preventDefault();
+  if ($('#auth-submit').disabled) return;
   const mode = $('#auth-form').dataset.mode;
+  const storageStep = mode === 'setup' && $('#auth-form').dataset.step === 'storage';
   const username = $('#auth-username').value.trim();
   const password = $('#auth-password').value;
-  if (mode === 'setup' && password !== $('#auth-confirm').value) {
+  if (mode === 'setup' && !storageStep && password !== $('#auth-confirm').value) {
     $('#auth-error').textContent = '两次输入的密码不一致';
     $('#auth-error').classList.remove('hidden');
     return;
   }
-  if (mode === 'setup' && $('#auth-form').dataset.step === 'account') { authStep('storage'); return; }
   $('#auth-submit').disabled = true;
   $('#auth-back').disabled = true;
+  $('#auth-error').classList.add('hidden');
+  const label = $('#auth-submit').textContent;
+  $('#auth-submit').textContent = storageStep ? '正在验证…' : mode === 'setup' ? '正在创建…' : '正在登录…';
   try {
+    if (storageStep) {
+      const storage = storageValue('auth');
+      $('#auth-storage-row').disabled = true;
+      await api('auth/storage/test', { method: 'POST', data: { storage } });
+      authStep('account');
+      return;
+    }
     const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? { storage: storageValue('auth') } : {}) } });
     state.csrf = result.csrf;
+    $('#auth-password').value = '';
+    $('#auth-confirm').value = '';
+    storageFields($('#auth-storage-type').value, 'auth');
     await loadWorkspace();
   } catch (error) {
     $('#auth-error').textContent = error.message;
     $('#auth-error').classList.remove('hidden');
-  } finally { $('#auth-submit').disabled = false; $('#auth-back').disabled = false; }
+  } finally {
+    $('#auth-submit').disabled = false;
+    $('#auth-back').disabled = false;
+    $('#auth-storage-row').disabled = $('#auth-form').dataset.step !== 'storage';
+    if (!storageStep || $('#auth-form').dataset.step === 'storage') $('#auth-submit').textContent = label;
+  }
 };
 $('#logout').onclick = async () => {
   if (!canLeaveEditor() || !canLeaveConfig()) return;

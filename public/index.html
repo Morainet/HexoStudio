@@ -33,7 +33,7 @@
     <form id="auth-form" class="auth-card">
       <div class="auth-heading"><div class="auth-brand" aria-hidden="true">H<span>✦</span></div><div><div class="eyebrow">HEXOSTUDIO</div><h1 id="auth-title">登录工作台</h1></div></div>
       <p id="auth-description">使用管理员账号继续管理博客。</p>
-      <ol id="auth-steps" class="auth-steps hidden" aria-label="创建账号进度"><li data-auth-step="account">1 · 设置账号</li><li data-auth-step="storage">2 · 连接数据库</li></ol>
+      <ol id="auth-steps" class="auth-steps hidden" aria-label="初始化进度"><li data-auth-step="storage">1 · 数据库</li><li data-auth-step="account">2 · 管理员</li><li>3 · 博客</li></ol>
       <fieldset id="auth-account-fields" class="auth-fields">
         <label>用户名<input id="auth-username" name="username" autocomplete="username" minlength="3" maxlength="32" required></label>
         <div class="auth-passwords">
@@ -44,13 +44,13 @@
       <fieldset id="auth-storage-row" class="auth-fields hidden" disabled>
         <label>数据库类型<select id="auth-storage-type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option></select></label>
         <div id="auth-storage-fields"></div>
-        <p class="storage-help">使用已有数据库，提交后会自动创建账号记录。</p>
-        <button id="auth-test-storage" class="secondary" type="button">测试连接</button>
+        <p class="storage-help">填写已有数据库的连接地址，验证成功后继续。</p>
       </fieldset>
       <p id="auth-error" class="auth-error hidden" role="alert"></p>
       <div class="auth-actions"><button id="auth-back" class="secondary hidden" type="button">上一步</button><button id="auth-submit" class="primary" type="submit">登录</button></div>
     </form>
   </div>
+  <div id="setup-blog-screen" class="auth-screen hidden"></div>
   <div id="app" class="shell hidden">
     <aside class="sidebar">
       <div class="brand"><span class="brand-mark">H<span>✦</span></span><div><strong>HexoStudio</strong><small>创作与发布空间</small></div></div>

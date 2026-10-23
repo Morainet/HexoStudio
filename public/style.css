@@ -59,7 +59,7 @@ body{font-size:13px}.icon-defs{position:absolute;width:0;height:0;overflow:hidde
 @media(prefers-reduced-motion:reduce){button{transition:none}.primary:hover,.hero button:hover,.quick-action:hover,.command-card:hover{transform:none}}
 .brand-mark,.auth-brand{position:relative;display:flex;align-items:center;justify-content:center;letter-spacing:-.04em;padding:0}.brand-mark span,.auth-brand span{position:absolute;right:5px;top:4px;align-self:auto;margin:0;font-size:9px;letter-spacing:0;line-height:1}.editor-toolbar button{display:inline-flex;align-items:center;gap:5px}.editor-toolbar button .icon{width:15px;height:15px}.command-icon .icon{width:24px;height:24px}
 
-/* Compact two-step account setup. */
+/* Guided setup: database, administrator, then blog. */
 .auth-card{padding:28px 32px}
 .auth-heading{display:flex;align-items:center;gap:13px;margin-bottom:14px}
 .auth-heading .auth-brand{margin:0;flex:none}
@@ -79,3 +79,10 @@ body{font-size:13px}.icon-defs{position:absolute;width:0;height:0;overflow:hidde
 .auth-card .auth-actions .primary{margin:0;flex:1;width:auto}
 .auth-actions .secondary{min-width:80px}
 @media(max-width:380px){.auth-screen{padding:16px}.auth-card{padding:24px}.auth-setup .auth-passwords{grid-template-columns:minmax(0,1fr);gap:0}}
+
+.setup-blog-card{width:min(100%,600px)}
+.setup-blog-card .connection-fields input{margin-top:0}
+.setup-blog-card .connection-fields label{margin-top:0}
+.setup-blog-card .connection-fields .primary{margin-top:12px}
+.setup-blog-card .connect-actions{margin-top:12px}
+.setup-blog-card .connection-fields p{margin-bottom:16px}
