@@ -4,49 +4,25 @@
 
 # HexoStudio
 
-**为 Hexo 博客打造的内容管理工作台。**
+为 Hexo 博客打造的内容管理工作台。在网页或桌面程序中写文章、管理页面、调整主题配置，并通过 Git 同步源码。
 
-在网页或桌面程序中写文章、管理页面、调整主题配置，并通过 Git 同步博客源码。支持本机目录和 GitHub / GitLab 远端仓库，提供管理员登录、深浅色外观和中英文界面。
+**网页 · macOS · Windows** ｜ **本机目录 · GitHub · GitLab** ｜ **深浅色 · 中英文**
 
-**网页 · macOS · Windows**　/　**本机与远端仓库**　/　**浅色与深色**　/　**简体中文与 English**
+[快速开始](#快速开始) · [使用指南](docs/guide.md) · [部署与配置](docs/configuration.md) · [开发与发布](docs/development.md)
 
-[快速开始](#快速开始) · [首次配置](#首次配置) · [日常使用](#日常使用) · [环境变量](#环境变量) · [常见问题](#常见问题) · [开发与打包](#开发与打包)
+![HexoStudio 深色工作台](docs/images/workspace-dark.png)
 
-## 界面预览
+## 核心功能
 
-![深色英文工作台，使用演示博客数据](docs/images/workspace-dark.png)
-
-<details>
-<summary>查看首次配置页面</summary>
-
-![首次配置：连接数据库](docs/images/setup-database.png)
-
-</details>
-
-## 功能一览
-
-| 模块 | 已支持的功能 |
-| --- | --- |
-| 文章与草稿 | 新建、编辑、删除、搜索、标签筛选、排序、分页，以及草稿发布 |
-| 独立页面 | 管理关于、友链等 Markdown 页面，保留主题自定义 front matter |
-| 写作编辑器 | Markdown 实时预览、标题与标签编辑、快捷插入、Ctrl/Cmd + S 保存 |
-| 图片 | 选择、粘贴或拖入图片上传，从图片库插入已有图片 |
-| 站点配置 | 编辑 Hexo 配置、主题覆盖配置和主题目录配置，保留原有注释与字段 |
-| Git 工作区 | 查看差异、暂存、取消暂存、提交、检查远端、拉取与推送 |
-| 构建与部署 | 执行项目自身的 Hexo 命令，实时查看运行日志 |
-| 管理员 | 分步初始化、登录、退出、修改密码、账号存储迁移 |
-| 显示偏好 | 浅色、深色、跟随系统，以及简体中文 / English 切换 |
+- **内容管理**：文章、草稿、独立页面，支持搜索、筛选与分页。
+- **Markdown 写作**：实时预览、快捷保存、图片粘贴与拖拽上传。
+- **站点配置**：编辑 Hexo 与主题配置，保留注释和自定义字段。
+- **Git 与部署**：查看差异、暂存、提交、拉取、推送，执行 Hexo 构建与部署。
+- **账号与外观**：管理员登录，深色 / 浅色 / 跟随系统，简体中文 / English。
 
 ## 快速开始
 
-### 准备环境
-
-- **Node.js 20 或更新版本**，以及 npm。
-- **已有的 Hexo 源码项目**：本机目录，或 GitHub / GitLab 仓库。
-- **可连接的数据库**：PostgreSQL、MySQL、MongoDB 三选一，用于保存管理员账号。本机运行同样需要配置数据库。
-- **Git**：连接远端仓库或使用 Git 工作区时需要安装。
-
-### 启动网页版
+准备 **Node.js 20+、npm、Git** 和一个 **Hexo 源码项目**，以及可连接的 **PostgreSQL、MySQL 或 MongoDB**。数据库用于保存管理员账号，本机运行也需要配置。
 
 ```bash
 git clone https://github.com/Morainet/HexoStudio.git
@@ -55,272 +31,45 @@ npm ci
 npm run web
 ```
 
-打开 [http://127.0.0.1:4545](http://127.0.0.1:4545)，按页面提示完成首次配置。
-
-### 启动桌面版
-
-在已安装依赖的 HexoStudio 目录中运行：
+打开 [http://127.0.0.1:4545](http://127.0.0.1:4545)。启动桌面版则运行：
 
 ```bash
 npm run desktop
 ```
 
-桌面版与网页版共用界面和后端。默认使用当前系统用户的同一份项目与账号存储配置；桌面版还支持浏览并选择本机项目目录。
+### 首次配置
 
-## 首次配置
+按向导完成三步：
 
-首次进入采用分步向导，每次只显示当前表单：
+1. **连接数据库**：填写已有数据库的连接信息，账号需有创建表 / 集合及读写权限。
+2. **设置管理员**：设置登录用户名和密码，密码至少 12 位。
+3. **连接博客**：选择包含 `_config.yml` 的本机源码目录，或填写 GitHub / GitLab 仓库与访问 Token。
 
-**1. 连接数据库 → 2. 设置管理员 → 3. 连接博客**
-
-### 1. 连接数据库
-
-选择数据库类型，填写已有数据库的连接地址，点击「验证并继续」。
-
-| 数据库 | 连接地址示例 |
-| --- | --- |
-| PostgreSQL | `postgresql://user:password@host:5432/hexostudio` |
-| MySQL | `mysql://user:password@host:3306/hexostudio` |
-| MongoDB | `mongodb://user:password@host:27017/hexostudio` |
-
-以上均为占位示例，请替换为自己的连接信息。MongoDB 地址中未包含数据库名时，可在表单中单独填写。
-
-数据库服务和数据库账号需要提前准备。HexoStudio 会创建 `hexostudio_admin` 表或集合，因此账号需要相应的创建和读写权限。连接验证通过后，才能进入管理员设置。
-
-### 2. 设置管理员
-
-填写用户名、密码和确认密码：
-
-- 用户名支持 3–32 位字母、数字、下划线或连字符。
-- 密码至少 12 个字符。
-- 返回上一步可调整数据库配置，已填写的表单内容会保留。
-
-管理员账号用于登录 HexoStudio，与 GitHub / GitLab 的访问 Token 分别配置。
-
-### 3. 连接博客
-
-#### 本机目录
-
-选择「本机目录」，输入 Hexo 项目的绝对路径，例如：
-
-```text
-/Users/name/blog
-C:\Users\name\blog
-```
-
-请选择包含 `_config.yml` 和 `source/_posts` 的源码目录。
-
-#### GitHub / GitLab
-
-选择「GitHub / GitLab」，填写服务商、仓库和访问 Token。
-
-| 字段 | 填写方式 |
-| --- | --- |
-| 仓库 | `username/repo` 或对应服务商的 HTTPS 仓库地址 |
-| 访问 Token | 具有目标仓库读写权限的 Token |
-| 分支 | 可选；留空使用默认分支 |
-| 博客路径 | 可选；留空表示仓库根目录，博客在子目录时填写如 `blog` |
-
-分支和博客路径位于「更多选项」中。当前支持 `github.com` 和 `gitlab.com`。
-
-连接后，仓库会克隆到运行 HexoStudio 的机器上，默认位于 `~/.hexostudio/repositories/`。编辑先写入工作目录，再通过 Git 工作区提交和推送。
-
-## 日常使用
-
-### 写作与发布
-
-1. 新建文章或草稿，在编辑器中输入 Markdown。
-2. 按需编辑标题、日期、标签和分类，上传或插入图片。
-3. 点击保存，或使用 `Ctrl/Cmd + S`，将内容写入博客源码。
-4. 草稿准备好后点击「发布草稿」，移入已发布文章目录。
-5. 按博客现有流程同步源码、构建或部署。
-
-**保存、发布草稿、Git 推送和部署是不同的操作：**
-
-| 操作 | 作用 |
-| --- | --- |
-| 本机自动备份 | 暂存未保存的编辑内容，可在重新打开文章时恢复 |
-| 保存文章 / 草稿 | 写入 Hexo 源码中的 Markdown 文件 |
-| 发布草稿 | 从 `source/_drafts` 移入 `source/_posts` |
-| Git 提交并推送 | 将源码变更同步到远端仓库 |
-| 构建与部署 | 运行项目配置的 Hexo 命令，生成或部署博客 |
-
-新建草稿默认不写入发布日期；发布时若没有日期，会补入当前本机时间。同名文章存在时会自动换名。保存时会检查文件是否被外部修改，避免直接覆盖更新。
-
-### 页面与主题配置
-
-- **页面管理**：独立页面存放在 `source/` 下，新建页面使用 `source/<页面路径>/index.md`。
-- **站点配置**：支持 `_config.yml`、根目录的 `_config.<主题>.yml/json`，以及主题目录中的 `_config.yml`。
-- **自定义字段**：文章信息侧栏只修改对应字段，其余 front matter 保持原样；复杂字段可以直接编辑文首 YAML。
-
-### 图片上传
-
-支持 PNG、JPEG、GIF 和 WebP，每张最大 8 MB。图片保存在博客的 `source/images/hexostudio/`，编辑器插入对应的 `/images/hexostudio/...` 路径。
-
-图片库展示该目录中的图片，支持再次插入；目前不提供图片删除功能。
-
-### Git 与部署
-
-推荐的源码同步顺序为：**查看差异 → 暂存 → 提交 → 推送**。
-
-- 提交只包含已暂存的版本。暂存后继续修改的内容留在工作区，可分别查看两份差异。
-- 「检查远端」更新远端跟踪状态；拉取采用快进方式，并要求工作区没有未提交变更。
-- 在「构建与部署」运行 `hexo clean`、`hexo generate` 或 `hexo deploy` 前，需要先在 **Hexo 博客目录** 安装依赖，并配置好博客的部署方式。
-- 刚克隆的仓库通常尚未安装依赖；HexoStudio 项目的依赖不能代替博客自身的依赖。
-- 运行日志在当前页面会话中保留，刷新浏览器后会清空。
-
-### 外观与语言
-
-登录及初始化页面右上角、工作台侧栏下方提供显示偏好设置。
-
-- **外观**：浅色、深色、跟随系统；默认跟随系统。
-- **语言**：简体中文、English；首次根据浏览器语言选择。
-- **切换**：立即生效，保留文章、配置和连接表单中的未保存输入。正在执行操作时，语言切换可能需要等待操作结束。
-- **记忆**：偏好保存在当前浏览器或桌面程序中；浏览器禁用本机存储时，刷新后不会记住选择。
-
-界面文案和常见账号错误会翻译，文章正文、标签、文件名及外部命令日志保持原样。
-
-## 数据存放与账号管理
-
-| 数据 | 默认存放位置 |
-| --- | --- |
-| 文章、草稿、页面、主题配置 | Hexo 项目目录 |
-| 上传图片 | 博客的 `source/images/hexostudio/` |
-| 远端仓库工作副本 | 运行机器的 `~/.hexostudio/repositories/` |
-| 项目路径、仓库 Token、数据库连接信息 | 当前系统用户的 `~/.hexostudio.json` |
-| 管理员用户名、随机盐、scrypt 密码哈希 | 用户配置的数据库 |
-| 未保存的文章备份、显示偏好 | 当前浏览器或桌面程序的本机存储 |
-| 登录会话 | 服务端内存，服务重启后需要重新登录 |
-
-账号数据库不存储博客正文。仓库 Token 和数据库密码不返回给前端，Token 也不会写入 Git 远端 URL。设置文件在 macOS / Linux 上设为仅当前用户可读写，Windows 下使用系统账户权限保护。
-
-登录后可以在「账号存储」迁移到另一数据库。迁移会复制账号哈希、验证目标记录，并使全部会话退出；原数据库中的账号记录会保留。
+远端仓库会克隆到运行 HexoStudio 的机器上。保存内容后，可通过 Git 工作区提交和推送；线上博客更新还需执行自己的部署流程。
 
 <details>
-<summary>旧版本的本机账号存储</summary>
+<summary>查看配置向导</summary>
 
-新建与迁移入口仅提供 PostgreSQL、MySQL、MongoDB。旧版本存放在 SQLite 或本机设置文件中的管理员账号仍可登录，并迁移到上述数据库。
+![首次配置：连接数据库](docs/images/setup-database.png)
 
 </details>
 
-## 环境变量
+连接地址示例、Token 配置和常见问题见[使用指南](docs/guide.md)。服务器部署见[部署与配置](docs/configuration.md#在服务器上运行)。
 
-以下变量用于启动 HexoStudio 服务：
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `HEXO_ROOT` | 已保存的项目目录 | 指定 Hexo 源码路径；设置后不能通过界面切换项目 |
-| `HEXOSTUDIO_PORT` | `4545` | 网页服务端口；桌面版使用自动分配的端口 |
-| `HEXOSTUDIO_HOST` | `127.0.0.1` | 网页服务监听地址 |
-| `HEXOSTUDIO_SETTINGS` | `~/.hexostudio.json` | 指定设置文件路径 |
-| `HEXOSTUDIO_TOKEN` | 未设置 | 服务 API 的 Bearer Token；监听非本机地址时必须设置，与仓库访问 Token 不同 |
-| `HEXOSTUDIO_COOKIE_SECURE` | 未设置 | 设为 `1` 时启用 Secure 会话 Cookie，适用于 HTTPS 入口 |
-
-指定博客目录启动，macOS / Linux：
-
-```bash
-HEXO_ROOT=/path/to/your/blog npm run web
-```
-
-Windows PowerShell：
-
-```powershell
-$env:HEXO_ROOT = 'C:\path\to\blog'
-npm run web
-```
-
-### 在服务器上运行
-
-当前默认使用方式是在本机运行。自行部署到服务器时，需要准备 Node.js、Git、账号数据库，以及可写的项目和设置文件目录。
-
-首次设置限制为本机访问，应先通过服务器本机入口完成初始化。对外提供网页时，使用 HTTPS 反向代理，并配置 `HEXOSTUDIO_COOKIE_SECURE=1`。若调整为监听非本机地址，还必须设置 `HEXOSTUDIO_TOKEN`；浏览器仍通过管理员账号登录。
-
-数据库服务需单独准备，项目目前未提供一键云部署或自动创建数据库服务的流程。
-
-## 常见问题
-
-### 为什么数据库连接失败？
-
-检查数据库服务是否可访问、连接地址和数据库名称是否正确，以及账号是否具有建表 / 建集合和读写权限。选择 MongoDB 时，如果地址中没有数据库名，需要补填该字段。
-
-### 为什么连接了仓库，却不能构建博客？
-
-先在克隆后的 **Hexo 博客目录** 安装依赖，确认存在 `node_modules/.bin/hexo`。连接仓库只准备源码，不会自动安装博客依赖或补齐部署配置。
-
-### 保存文章后，线上博客为什么没有变化？
-
-保存只更新源码。使用仓库自动部署时，还需提交、推送并等待自己的部署流水线完成；使用 Hexo 部署配置时，需要执行相应的构建与部署操作。
-
-### 为什么无法切换项目？
-
-检查是否设置了 `HEXO_ROOT`。该变量会固定项目目录。Git 操作、构建等任务进行中时，也需要先等待操作完成。
-
-### 未保存的内容能恢复吗？
-
-文章编辑有本机备份，重新打开时可选择恢复。备份只属于当前浏览器或桌面程序；正式保存后内容才会写入 Hexo 文件。配置编辑会在离开时提示未保存更改，但没有文章式的自动恢复备份。
-
-### 重启后为什么需要重新登录？
-
-登录会话保存在服务端内存，服务重启后失效；已保存在数据库中的管理员账号不受影响。
-
-## 开发与打包
-
-### 常用命令
+## 开发与构建
 
 | 命令 | 用途 |
 | --- | --- |
-| `npm ci` | 按锁文件安装依赖 |
-| `npm run web` | 启动网页服务 |
-| `npm run desktop` | 启动 Electron 桌面程序 |
-| `npm run check` | 检查前端、后端、桌面入口及测试的 JavaScript 语法 |
+| `npm run check` | JavaScript 语法检查 |
 | `npm test` | 运行测试 |
-| `npm run package:mac` | 构建 macOS 的 DMG / ZIP |
-| `npm run package:win` | 构建 Windows x64 的安装包 / 便携版 |
+| `npm run package:mac` | 构建 macOS DMG / ZIP |
+| `npm run package:win` | 构建 Windows x64 安装版 / 便携版 |
 
-构建产物位于 `dist/`。正式分发前需准备签名证书，Windows 安装及运行仍需在 Windows 机器上验证。
+本机构建产物位于 `dist/`。GitHub Actions 提供：
 
-### GitHub Actions 自动化
+- **CI**：提交和 PR 自动运行 Node.js 20 / 22 / 24 检查与测试。
+- **Desktop builds**：手动构建 macOS Apple Silicon / Intel、Windows x64 安装包；推送匹配版本的 `v*` 标签时创建 Release 草稿。
 
-在仓库的 [Actions 页面](https://github.com/Morainet/HexoStudio/actions) 查看运行结果。
+[查看 Actions](https://github.com/Morainet/HexoStudio/actions) · [构建与发布说明](docs/development.md#github-actions-自动化)
 
-| 工作流 | 触发方式 | 执行内容 |
-| --- | --- | --- |
-| CI | 分支推送、Pull Request、手动运行 | 在 Node.js 20 / 22 / 24 上安装锁定依赖、检查语法、运行测试 |
-| Desktop builds | 推送 `v*` 标签、手动运行 | 先检查与测试，再构建 macOS Apple Silicon / Intel、Windows x64 安装包 |
-
-**下载测试安装包：** 选择 `Desktop builds` → `Run workflow`。完成后，在该次运行的 Artifacts 中下载对应平台的文件，保留 14 天。手动运行只生成构建产物。
-
-**创建版本发布：** 先更新 `package.json` 与 `package-lock.json` 的版本并提交，确保检查通过，再推送对应标签。例如当前 `0.8.0` 版本：
-
-```bash
-git tag v0.8.0
-git push origin v0.8.0
-```
-
-标签必须与 `package.json` 的版本一致。所有平台构建成功后，工作流会创建 GitHub Release **草稿**，上传 DMG、ZIP、Windows 安装版、便携版和 `SHA256SUMS.txt`。检查产物与发布说明后，在 Releases 页面手动发布。重新运行可以更新草稿附件，已发布的 Release 不会被覆盖。
-
-工作流使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需配置个人 Token 或博客数据库凭据；只有创建 Release 的任务拥有仓库内容写权限。如果仓库禁用了 Actions，需要先在仓库设置中启用。
-
-当前构建未配置开发者签名或 macOS 公证，系统可能提示无法验证开发者。工作流验证代码和打包过程，安装及启动仍需在目标系统上验收。
-
-### 项目结构
-
-```text
-HexoStudio/
-├── .github/workflows/  # 持续检查与桌面构建、Release 草稿
-├── scripts/            # 语法检查与发布版本验证
-├── public/             # 共享网页界面、样式、翻译与显示偏好
-├── server/             # HTTP API、Hexo 文件操作、Git、认证与数据库适配
-├── desktop/            # Electron 主进程与预加载脚本
-├── test/               # 功能与回归测试
-└── docs/images/        # README 界面截图
-```
-
-翻译文案集中在 `public/i18n.js`，两套外观使用 `public/style.css` 中的颜色变量。
-
-## 当前范围
-
-- 远端仓库支持 GitHub.com 和 GitLab.com 的 HTTPS 连接；暂不支持自建 GitLab、SSH 或自动解决合并冲突。
-- Markdown 预览为轻量预览，Hexo 标签插件和主题渲染以正式构建结果为准。
-- 暂未实现外部图床、专用友链管理模块和访问统计；主题已有的友链页面仍可作为普通页面编辑。
-- 暂未提供一键云部署、托管数据库或多用户协作管理。
+当前安装包未配置签名和 macOS 公证，仍需在目标系统上验证安装与启动。
