@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/brand/hexostudio-logo.png" width="112" alt="HexoStudio Logo">
+</p>
+
 # HexoStudio
 
 **为 Hexo 博客打造的内容管理工作台。**
