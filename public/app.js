@@ -471,20 +471,41 @@ function storageFields(type, prefix) {
     row.append(input);
     fields.append(row);
   };
-  if (type === 'sqlite') add('SQLite 文件路径（留空使用默认路径）', 'storage-path', '默认：用户目录/.hexostudio/auth.sqlite', false);
   if (type === 'postgres') add('PostgreSQL 连接地址', 'storage-url', 'postgresql://user:password@host:5432/database');
   if (type === 'mysql') add('MySQL 连接地址', 'storage-url', 'mysql://user:password@host:3306/database');
-  if (type === 'mongodb') { add('MongoDB 连接地址', 'storage-url', 'mongodb://user:password@host:27017'); add('数据库名称', 'storage-database', 'hexostudio'); }
+  if (type === 'mongodb') { add('MongoDB 连接地址', 'storage-url', 'mongodb://user:password@host:27017'); add('数据库名称（地址中已包含可留空）', 'storage-database', '例如 hexostudio', false); }
 }
 function storageValue(prefix) {
   const type = $(`#${prefix}-storage-type`).value;
-  if (type === 'sqlite') return { type, path: $(`#${prefix}-storage-path`).value.trim() || undefined };
-  if (type === 'file') return { type };
   const value = { type, url: $(`#${prefix}-storage-url`).value.trim() };
   if (type === 'mongodb') value.database = $(`#${prefix}-storage-database`).value.trim();
   return value;
 }
-$('#auth-storage-type').onchange = () => storageFields($('#auth-storage-type').value, 'auth');
+$('#auth-storage-type').onchange = () => {
+  storageFields($('#auth-storage-type').value, 'auth');
+  $('#auth-error').classList.add('hidden');
+};
+function authStep(step) {
+  const setup = $('#auth-form').dataset.mode === 'setup';
+  const storage = setup && step === 'storage';
+  $('#auth-form').dataset.step = storage ? 'storage' : 'account';
+  $('#auth-account-fields').disabled = storage;
+  $('#auth-account-fields').classList.toggle('hidden', storage);
+  $('#auth-storage-row').disabled = !storage;
+  $('#auth-storage-row').classList.toggle('hidden', !storage);
+  $('#auth-back').classList.toggle('hidden', !storage);
+  $('#auth-steps').classList.toggle('hidden', !setup);
+  document.querySelectorAll('[data-auth-step]').forEach(item => {
+    const active = item.dataset.authStep === (storage ? 'storage' : 'account');
+    item.classList.toggle('active', active);
+    if (active) item.setAttribute('aria-current', 'step'); else item.removeAttribute('aria-current');
+  });
+  $('#auth-description').textContent = !setup ? '使用管理员账号继续管理博客。' : storage ? '连接用于保存管理员账号的数据库。' : '设置登录账号，开始管理你的博客。';
+  $('#auth-submit').textContent = !setup ? '登录' : storage ? '创建账号并进入' : '下一步';
+  $('#auth-error').classList.add('hidden');
+  $(storage ? '#auth-storage-type' : '#auth-username').focus();
+}
+$('#auth-back').onclick = () => authStep('account');
 $('#auth-test-storage').onclick = async () => {
   $('#auth-test-storage').disabled = true;
   try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('auth') } }); toast('存储连接成功'); }
@@ -497,16 +518,18 @@ function showAuth(configured) {
   $('#auth-form').reset();
   $('#auth-error').classList.add('hidden');
   $('#auth-title').textContent = configured ? '登录工作台' : '创建管理员账号';
-  $('#auth-description').textContent = configured ? '使用管理员账号继续管理博客。' : '首次使用请在本机设置账号，之后每次进入都需要登录。';
+  $('#auth-description').textContent = configured ? '使用管理员账号继续管理博客。' : '设置登录账号，开始管理你的博客。';
+  $('#auth-form').classList.toggle('auth-setup', !configured);
   $('#auth-confirm-row').classList.toggle('hidden', configured);
-  $('#auth-storage-row').classList.toggle('hidden', configured);
   storageFields($('#auth-storage-type').value, 'auth');
-  $('#auth-storage-row').querySelectorAll('input,select').forEach(input => { input.disabled = configured; });
   $('#auth-confirm').required = !configured;
+  $('#auth-confirm').disabled = configured;
+  $('#auth-password').minLength = configured ? 1 : 12;
+  $('#auth-password').placeholder = configured ? '' : '至少 12 个字符';
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
   $('#auth-submit').textContent = configured ? '登录' : '创建账号并进入';
   $('#auth-form').dataset.mode = configured ? 'login' : 'setup';
-  $('#auth-username').focus();
+  authStep('account');
 }
 async function loadWorkspace() {
   const status = await api('status');
@@ -530,7 +553,9 @@ $('#auth-form').onsubmit = async event => {
     $('#auth-error').classList.remove('hidden');
     return;
   }
+  if (mode === 'setup' && $('#auth-form').dataset.step === 'account') { authStep('storage'); return; }
   $('#auth-submit').disabled = true;
+  $('#auth-back').disabled = true;
   try {
     const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? { storage: storageValue('auth') } : {}) } });
     state.csrf = result.csrf;
@@ -538,7 +563,7 @@ $('#auth-form').onsubmit = async event => {
   } catch (error) {
     $('#auth-error').textContent = error.message;
     $('#auth-error').classList.remove('hidden');
-  } finally { $('#auth-submit').disabled = false; }
+  } finally { $('#auth-submit').disabled = false; $('#auth-back').disabled = false; }
 };
 $('#logout').onclick = async () => {
   if (!canLeaveEditor() || !canLeaveConfig()) return;
@@ -581,9 +606,9 @@ $('#account-storage').onclick = async () => {
   let current;
   try { current = (await api('auth/storage')).storage; }
   catch (error) { return toast(error.message); }
-  modal('<h2 id="modal-title">账号存储</h2><p id="current-storage"></p><form id="storage-form"><label>目标存储<select id="move-storage-type"><option value="sqlite">SQLite</option><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option><option value="file">本机设置文件</option></select></label><div id="move-storage-fields"></div><label>当前管理员密码<input id="move-password" type="password" autocomplete="current-password" required></label><p>切换后需要重新登录。原数据库中的账号记录会保留，便于手动回退。</p><div class="actions"><button id="move-test" type="button" class="secondary">测试连接</button><button id="move-submit" type="submit" class="primary">迁移并退出</button></div></form>');
+  modal('<h2 id="modal-title">账号存储</h2><p id="current-storage"></p><form id="storage-form"><label>目标存储<select id="move-storage-type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option></select></label><div id="move-storage-fields"></div><label>当前管理员密码<input id="move-password" type="password" autocomplete="current-password" required></label><p>切换后需要重新登录。原数据库中的账号记录会保留，便于手动回退。</p><div class="actions"><button id="move-test" type="button" class="secondary">测试连接</button><button id="move-submit" type="submit" class="primary">迁移并退出</button></div></form>');
   $('#current-storage').textContent = `当前：${current.type} · ${current.label}`;
-  $('#move-storage-type').value = current.type === 'file' ? 'sqlite' : current.type;
+  $('#move-storage-type').value = ['postgres', 'mysql', 'mongodb'].includes(current.type) ? current.type : 'postgres';
   storageFields($('#move-storage-type').value, 'move');
   $('#move-storage-type').onchange = () => storageFields($('#move-storage-type').value, 'move');
   $('#move-test').onclick = async () => {

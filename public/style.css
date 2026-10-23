@@ -58,3 +58,24 @@ body{font-size:13px}.icon-defs{position:absolute;width:0;height:0;overflow:hidde
 @media(max-width:700px){.shell{display:block}.sidebar{width:100%;padding:12px 14px 10px;box-shadow:none}.brand{padding:0 2px 12px}.brand-mark{width:35px;height:35px;font-size:22px}.brand strong{font-size:15px}.brand small{font-size:10px}.workspace-label{display:none}.nav{display:flex;overflow:auto;gap:5px;padding-bottom:3px;scrollbar-width:thin}.nav button{min-height:38px;padding:0 11px;gap:7px;white-space:nowrap;font-size:11px;flex:none}.nav-icon{width:16px;height:16px}.nav button.active:before{display:none}.sidebar-bottom{display:flex;flex-wrap:wrap;gap:4px;border-top:1px solid #ffffff16;padding:8px 0 0;margin-top:7px}.sidebar-bottom .project-chip{display:none}.sidebar-bottom .text-button{width:auto;padding:5px 8px;font-size:10px;gap:5px}.sidebar-bottom .text-button .icon{width:13px;height:13px}.topbar{height:62px;padding:0 17px}.topbar-label{font-size:8px}.topbar #breadcrumb{font-size:11px}.top-actions{gap:8px}.top-actions .connection{display:none}.primary.small{font-size:11px;padding:9px 11px}.view{padding:25px 16px 55px}.page-head{align-items:flex-start;flex-direction:column;gap:14px}.page-head h1{font-size:24px}.page-head .head-actions{flex-wrap:wrap}.hero{min-height:205px;padding:27px 25px}.hero h2{font-size:21px}.hero p{font-size:12px}.hero-art{display:none}.stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.stat-card{min-height:100px;padding:13px 9px;display:block}.stat-icon{width:29px;height:29px;border-radius:8px;margin-bottom:8px}.stat-icon .icon{width:16px;height:16px}.stat-card small{display:block;font-size:9px}.stat-card strong{font-size:20px}.columns{grid-template-columns:1fr}.toolbar{flex-wrap:wrap}.search{min-width:0;width:100%}.filter{width:100%}.table-panel{padding:0 14px}.table-head,.article-row{grid-template-columns:minmax(0,1fr) 106px}.page-table{grid-template-columns:minmax(0,1fr) 106px}.row-actions{flex-wrap:wrap;gap:5px}.editor-status{display:none}.editor-toolbar{flex-wrap:wrap}.editor-toolbar small{width:100%}}
 @media(prefers-reduced-motion:reduce){button{transition:none}.primary:hover,.hero button:hover,.quick-action:hover,.command-card:hover{transform:none}}
 .brand-mark,.auth-brand{position:relative;display:flex;align-items:center;justify-content:center;letter-spacing:-.04em;padding:0}.brand-mark span,.auth-brand span{position:absolute;right:5px;top:4px;align-self:auto;margin:0;font-size:9px;letter-spacing:0;line-height:1}.editor-toolbar button{display:inline-flex;align-items:center;gap:5px}.editor-toolbar button .icon{width:15px;height:15px}.command-icon .icon{width:24px;height:24px}
+
+/* Compact two-step account setup. */
+.auth-card{padding:28px 32px}
+.auth-heading{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.auth-heading .auth-brand{margin:0;flex:none}
+.auth-heading h1{font-size:23px;margin:5px 0 0;line-height:1.3}
+.auth-heading .eyebrow{font-size:9px;letter-spacing:1.8px}
+.auth-card #auth-description{margin:0 0 18px}
+.auth-fields{border:0;margin:0;padding:0;min-width:0}
+.auth-card label{margin-top:13px}
+.auth-passwords{display:grid;grid-template-columns:minmax(0,1fr);gap:0}
+.auth-setup .auth-passwords{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.auth-card input{min-width:0;font-size:13px}
+.auth-card #auth-storage-row{margin-top:0;padding-top:0;border-top:0}
+.auth-steps{list-style:none;display:flex;gap:16px;padding:0;margin:0 0 15px;border-bottom:1px solid var(--line)}
+.auth-steps li{flex:1;padding:10px 0;color:var(--muted);font-size:11px;border-bottom:2px solid transparent}
+.auth-steps li.active{color:var(--brand-dark);border-bottom-color:var(--brand);font-weight:700}
+.auth-actions{display:flex;gap:10px;margin-top:22px}
+.auth-card .auth-actions .primary{margin:0;flex:1;width:auto}
+.auth-actions .secondary{min-width:80px}
+@media(max-width:380px){.auth-screen{padding:16px}.auth-card{padding:24px}.auth-setup .auth-passwords{grid-template-columns:minmax(0,1fr);gap:0}}

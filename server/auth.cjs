@@ -21,17 +21,24 @@ function equal(a, b) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 function isLoopback(address) { return ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(address); }
+function remoteStorage(input) {
+  if (!['postgres', 'mysql', 'mongodb'].includes(input?.type)) {
+    throw Object.assign(new Error('请选择 PostgreSQL、MySQL 或 MongoDB 数据库'), { status: 400 });
+  }
+  return normalizeStorage(input);
+}
 
 class AuthManager {
-  constructor(loadSettings, saveSettings) {
+  constructor(loadSettings, saveSettings, storeFactory = createStore) {
     this.loadSettings = loadSettings;
     this.saveSettings = saveSettings;
+    this.createStore = config => storeFactory(config, this.loadSettings, this.saveSettings);
     this.sessions = new Map();
     this.failures = new Map();
     this.setupPending = false;
   }
   storage() { return normalizeStorage(this.loadSettings().authStorage); }
-  store() { return createStore(this.storage(), this.loadSettings, this.saveSettings); }
+  store() { return this.createStore(this.storage()); }
   async configured() { return Boolean((await this.account())?.hash); }
   async account() { return this.store().read(); }
   storageInfo() { return describeStorage(this.storage()); }
@@ -77,20 +84,20 @@ class AuthManager {
       this.assertLocal(req);
       if (await this.configured()) throw Object.assign(new Error('请先登录'), { status: 401 });
     }
-    const config = normalizeStorage(input);
-    await createStore(config, this.loadSettings, this.saveSettings).probe();
+    const config = remoteStorage(input);
+    await this.createStore(config).probe();
     return describeStorage(config);
   }
-  async setup(username, password, req, secure = false, input = { type: 'sqlite' }) {
+  async setup(username, password, req, secure = false, input) {
     this.assertLocal(req);
     if (await this.configured() || this.setupPending) throw Object.assign(new Error('管理员账号已创建'), { status: 409 });
     validCredentials(username, password);
-    const config = normalizeStorage(input);
+    const config = remoteStorage(input);
     this.setupPending = true;
     try {
       const salt = crypto.randomBytes(32).toString('hex');
       const hash = await hashPassword(password, salt);
-      await createStore(config, this.loadSettings, this.saveSettings).create({ username, salt, hash });
+      await this.createStore(config).create({ username, salt, hash });
       const settings = { ...this.loadSettings(), authStorage: config };
       if (config.type !== 'file') delete settings.admin;
       this.saveSettings(settings);
@@ -127,9 +134,9 @@ class AuthManager {
     if (!admin || typeof password !== 'string' || !equal(await hashPassword(password, admin.salt), admin.hash)) {
       throw Object.assign(new Error('当前密码错误'), { status: 401 });
     }
-    const target = normalizeStorage(input);
+    const target = remoteStorage(input);
     if (JSON.stringify(target) === JSON.stringify(this.storage())) throw Object.assign(new Error('请选择不同的目标存储'), { status: 400 });
-    const store = createStore(target, this.loadSettings, this.saveSettings);
+    const store = this.createStore(target);
     await store.probe();
     if (await store.read()) throw Object.assign(new Error('目标存储已有管理员账号'), { status: 409 });
     await store.create(admin);
