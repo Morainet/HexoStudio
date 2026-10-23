@@ -404,7 +404,10 @@ const HexoI18n = (() => {
   "修改{0}信息时只更新对应字段；主题自定义字段保持原样。也可以直接编辑文首的 YAML。": "Editing {0} details updates only those fields. Custom theme fields are preserved. You can also edit the YAML at the top of the document.",
   "{0}信息": "{0} details",
   "点击图片插入{0}": "Click an image to insert it into your {0}",
-  "Markdown {0}内容": "Markdown {0} content"
+  "Markdown {0}内容": "Markdown {0} content",
+  "重新读取": "Reload file",
+  "保存失败，修改仍保留": "Save failed. Your changes are still here.",
+  "编辑内容已变化，请重新打开目标文章": "Your edits have changed. Open the requested article again when ready."
 };
   let language = 'zh-CN';
   function translate(source, ...values) {

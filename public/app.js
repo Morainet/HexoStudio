@@ -286,13 +286,14 @@ function configPage() {
   const config = state.config;
   const format = config.scope.endsWith('.json') ? 'JSON' : 'YAML';
   const options = [`<option value="site">${t("Hexo 站点配置 · _config.yml")}</option>`, ...(config.overrides || []).map(filename => `<option value="override:${escapeHTML(filename)}">${escapeHTML(filename)} ${t("· 主题覆盖配置")}</option>`), ...config.themes.map(theme => `<option value="theme:${escapeHTML(theme)}">${escapeHTML(theme)} ${t("· 主题目录配置")}${theme === state.site?.theme ? t("（当前）") : ''}</option>`)].join('');
-  $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("直接查看并编辑 Hexo 与主题的配置文件。"), `<button id="save-config" class="primary">${t("保存配置")}</button>`)}
+  $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("直接查看并编辑 Hexo 与主题的配置文件。"), `<span id="config-status" class="editor-status" role="status"></span><button id="reload-config" class="secondary">${t("重新读取")}</button><button id="save-config" class="primary">${t("保存配置")}</button>`)}
     <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} ${t("配置")}"></textarea></section><div class="hint-card">${t("保存前请确认")} ${format} ${t("语法正确。HexoStudio 会保留原有注释和字段，不会重新格式化配置。")}</div>`;
   $('#scope').value = config.scope;
   $('#scope').onchange = async event => { const selected = event.target.value; if (!await loadConfig(selected)) event.target.value = config.scope; };
   $('#config-editor').value = state.configBuffer ?? config.content;
-  $('#config-editor').oninput = () => { state.configBuffer = $('#config-editor').value; state.configDirty = state.configBuffer !== state.config.content; $('#save-config').textContent = state.configDirty ? t("保存配置 ●") : t("保存配置"); };
-  $('#save-config').textContent = state.configDirty ? t("保存配置 ●") : t("保存配置");
+  $('#config-editor').oninput = () => { state.configBuffer = $('#config-editor').value; state.configDirty = state.configBuffer !== state.config.content; state.configSaveError = false; updateConfigStatus(); };
+  updateConfigStatus();
+  $('#reload-config').onclick = () => loadConfig(config.scope);
   $('#save-config').onclick = saveConfig;
 }
 function deployPage() {
@@ -413,6 +414,7 @@ async function connectBlog(remote) {
     connectionError(remote ? t("请填写仓库地址和访问 Token。") : t("请先填写 Hexo 项目目录。")); return;
   }
   $('#connection-error').classList.add('hidden');
+  state.contentRequest = null;
   state.connecting = true;
   const original = button.textContent;
   const controls = [...document.querySelectorAll('.connection-fields input,.connection-fields select,.connection-fields button,[data-connect-mode]')];
@@ -420,7 +422,7 @@ async function connectBlog(remote) {
   try {
     const result = await api(remote ? 'remote/connect' : 'project', { method: 'POST', data });
     state.root = result.root; state.site = result.site; state.connection = result.connection || { type: 'local' };
-    state.git = null; state.config = null; state.configBuffer = null; state.configDirty = false;
+    state.git = null; state.config = null; state.configBuffer = null; state.configDirty = false; state.configSaveError = false;
     state.current = null; state.editorDirty = false; state.contentKind = 'post'; state.lists = {};
     state.posts = []; state.drafts = []; state.pages = []; state.commandLog = '';
     let refreshError;
@@ -454,8 +456,18 @@ async function createPost() {
 async function refreshPosts() { const root = state.root; const [posts, drafts, pages] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } }), api('posts', { params: { kind: 'page' } })]); if (root !== state.root) return; state.posts = posts.posts; state.drafts = drafts.posts; state.pages = pages.posts; }
 async function openPost(path, kind = 'post', skipGuard = false) {
   if (!skipGuard && ((state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig()))) return;
+  const request = state.contentRequest = {};
+  const root = state.root, view = state.view;
+  const buffer = state.editorBuffer, metadata = JSON.stringify(state.metadataValues), configBuffer = state.configBuffer;
+  const active = () => state.contentRequest === request && state.root === root && state.view === view;
   try {
     const post = await api('post', { params: { path, kind } });
+    if (!active()) return;
+    // The previous editor stays usable while the request is in flight.
+    if (state.saving || state.configSaving || state.uploading || buffer !== state.editorBuffer || metadata !== JSON.stringify(state.metadataValues) || configBuffer !== state.configBuffer) {
+      toast(t("编辑内容已变化，请重新打开目标文章")); return;
+    }
+    state.configDirty = false; state.configBuffer = state.config?.content; state.configSaveError = false;
     state.current = post;
     if (kind !== 'page') state.contentKind = kind;
     state.editorBuffer = post.content;
@@ -472,7 +484,8 @@ async function openPost(path, kind = 'post', skipGuard = false) {
       $('#discard-draft').onclick = () => { clearDraft(path, kind); closeModal(); };
       $('#restore-draft').onclick = () => { state.editorBuffer = draft.content; state.editorBaseModified = draft.modified; state.metadataValues = { ...state.metadataBase, ...(draft.metadataValues || {}) }; state.editorDirty = true; editorPage(); closeModal(); };
     }
-  } catch (error) { toast(error.message, 'error'); }
+  } catch (error) { if (active()) toast(error.message, 'error'); }
+  finally { if (state.contentRequest === request) state.contentRequest = null; }
 }
 async function savePost() {
   if (!state.current || state.saving) return false;
@@ -550,45 +563,54 @@ function confirmDelete(path, kind = 'post') {
     toast(refreshError ? t`${label}已删除，列表刷新失败：${refreshError.message}` : t`${label}已删除`, refreshError ? 'error' : 'success');
   }, t("正在删除…"));
 }
+function updateConfigStatus() {
+  const status = $('#config-status');
+  if (status) status.textContent = state.configSaving ? t("正在保存…") : state.configSaveError ? t("保存失败，修改仍保留") : state.configDirty ? t("未保存更改") : t("所有更改已保存");
+  const button = $('#save-config');
+  if (button) button.textContent = state.configSaving ? t("正在保存…") : state.configDirty ? t("保存配置 ●") : t("保存配置");
+}
 function canLeaveConfig() {
   if (state.configSaving) { toast(t("配置正在保存，请稍候")); return false; }
-  if (!state.configDirty) return true;
-  if (!window.confirm(t("配置还有未保存的改动，确定放弃吗？"))) return false;
-  state.configDirty = false; state.configBuffer = state.config?.content;
-  return true;
+  return !state.configDirty || window.confirm(t("配置还有未保存的改动，确定放弃吗？"));
 }
 async function loadConfig(scope = 'site') {
   if (state.view === 'config' && !canLeaveConfig()) return false;
-  const version = state.configLoad = (state.configLoad || 0) + 1;
+  const request = state.contentRequest = {};
   const root = state.root;
+  const active = () => state.contentRequest === request && root === state.root && state.view === 'config';
   state.view = 'config'; updateShell();
   $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("正在读取配置…"))}`;
   try {
     const config = await api('config', { params: { scope } });
-    if (version !== state.configLoad || root !== state.root || state.view !== 'config') return false;
-    state.config = config; state.configBuffer = config.content; state.configDirty = false;
+    if (!active()) return false;
+    state.config = config; state.configBuffer = config.content; state.configDirty = false; state.configSaveError = false;
     render(); return true;
   } catch (error) {
-    if (version === state.configLoad && state.view === 'config') viewError(t("站点配置"), error.message, () => loadConfig(scope));
+    if (active()) {
+      // Keep the previous buffer until its replacement has loaded successfully.
+      if (state.config) { render(); toast(error.message, 'error'); }
+      else viewError(t("站点配置"), error.message, () => loadConfig(scope));
+    }
     return false;
-  }
+  } finally { if (state.contentRequest === request) state.contentRequest = null; }
 }
 async function saveConfig() {
   if (state.configSaving) return;
   const button = $('#save-config'); const editor = $('#config-editor');
   if (!editor || !state.config) return;
   const config = state.config; const content = editor.value;
-  state.configSaving = true; button.disabled = true; editor.readOnly = true;
+  state.configSaving = true; state.configSaveError = false; button.disabled = true; editor.readOnly = true;
+  $('#reload-config').disabled = true; updateConfigStatus();
   $('#scope').disabled = true; button.textContent = t("正在保存…");
   try {
     const result = await api('config', { method: 'PUT', data: { scope: config.scope, content, modified: config.modified } });
     config.content = content; config.modified = result.modified;
     state.configBuffer = content; state.configDirty = false;
     toast(t("配置已保存"));
-  } catch (error) { toast(error.message, 'error'); }
+  } catch (error) { state.configSaveError = true; toast(error.message, 'error'); }
   finally {
     state.configSaving = false;
-    if (button.isConnected) { button.disabled = false; button.textContent = state.configDirty ? t("保存配置 ●") : t("保存配置"); editor.readOnly = false; $('#scope').disabled = false; }
+    if (button.isConnected) { button.disabled = false; editor.readOnly = false; $('#scope').disabled = false; $('#reload-config').disabled = false; updateConfigStatus(); }
   }
 }
 function appendCommandLog(text) {
@@ -625,9 +647,11 @@ async function runCommand(action) {
 }
 async function navigate(view) {
   if (state.gitBusy) { toast(t("Git 操作正在进行，请稍候")); return; }
-  if (view === state.view && !(view === 'config' && !state.config)) return;
+  if (view === state.view && !state.contentRequest && !(view === 'config' && !state.config)) return;
   if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; }
   if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return;
+  state.contentRequest = null;
+  if (state.view === 'config' && view !== 'config') { state.configDirty = false; state.configBuffer = state.config?.content; state.configSaveError = false; }
   state.view = view;
   if (view === 'config' && !state.config) return loadConfig();
   if (view === 'git') { render(); return loadGit(); }
@@ -686,6 +710,7 @@ function authStep(step) {
 }
 $('#auth-back').onclick = () => authStep('storage');
 function showAuth(configured) {
+  state.contentRequest = null;
   $('#app').classList.add('hidden');
   $('#setup-blog-screen').classList.add('hidden');
   $('#setup-blog-screen').replaceChildren();
@@ -788,6 +813,7 @@ $('#account-settings').onclick = () => {
   $('#password-form').onsubmit = async event => {
     event.preventDefault();
     if ($('#new-password').value !== $('#confirm-password').value) return toast(t("两次输入的新密码不一致"));
+    if (!canLeaveEditor() || !canLeaveConfig()) return;
     const submit = $('#password-form button[type="submit"]');
     submit.disabled = true;
     try {
@@ -820,6 +846,7 @@ $('#account-storage').onclick = async () => {
   };
   $('#storage-form').onsubmit = async event => {
     event.preventDefault();
+    if (!canLeaveEditor() || !canLeaveConfig()) return;
     $('#move-submit').disabled = true;
     try {
       await api('auth/storage/migrate', { method: 'POST', data: { password: $('#move-password').value, storage: storageValue('move') } });
@@ -889,7 +916,7 @@ document.addEventListener('hexostudio:language', () => {
   document.getElementById(active)?.focus({ preventScroll: true });
 });
 
-window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.busy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.busy || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
     const status = await api('auth/status');
