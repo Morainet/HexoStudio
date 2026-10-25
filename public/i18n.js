@@ -406,6 +406,11 @@ const HexoI18n = (() => {
   "点击图片插入{0}": "Click an image to insert it into your {0}",
   "Markdown {0}内容": "Markdown {0} content",
   "重新读取": "Reload file",
+  "正在发布…": "Publishing…",
+  "正在迁移…": "Migrating…",
+  "正在读取账号存储…": "Loading account storage…",
+  "没有文件读写权限，请检查博客目录权限后重试": "File access denied. Check your blog folder permissions and try again.",
+  "文件系统为只读，请将博客放在可写目录后重试": "The file system is read-only. Move your blog to a writable folder and try again.",
   "保存失败，修改仍保留": "Save failed. Your changes are still here.",
   "编辑内容已变化，请重新打开目标文章": "Your edits have changed. Open the requested article again when ready."
 };
@@ -419,6 +424,8 @@ const HexoI18n = (() => {
   return {
     t: translate,
     error(message) {
+      if (/^(?:EACCES|EPERM):/.test(message)) return translate("没有文件读写权限，请检查博客目录权限后重试");
+      if (/^EROFS:/.test(message)) return translate("文件系统为只读，请将博客放在可写目录后重试");
       const database = /^管理员数据库连接或操作失败(?:（([A-Z0-9_]+)）)?$/.exec(message);
       if (database && language === 'en') return `Administrator database connection or operation failed${database[1] ? ` (${database[1]})` : ''}`;
       return translate(message);

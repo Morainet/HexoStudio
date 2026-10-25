@@ -11,7 +11,7 @@ async function api(name, options = {}) {
     body: options.data ? JSON.stringify(options.data) : undefined
   }).catch(() => { throw new Error(t("无法连接服务，请检查服务是否运行后重试")); });
   const result = await response.json().catch(() => { throw new Error(t("服务返回异常，请稍后重试")); });
-  if (response.status === 401 && !name.startsWith('auth/')) { state.csrf = null; showAuth(true); }
+  if (response.status === 401 && !name.startsWith('auth/')) { state.csrf = null; closeModal(true); showAuth(true); }
   if (!response.ok) throw Object.assign(new Error(HexoI18n.error(result.error || "请求失败")), { status: response.status });
   return result;
 }
@@ -22,16 +22,57 @@ function toast(message, tone = 'success') {
   toast.timer = setTimeout(() => el.classList.add('hidden'), tone === 'error' ? 7000 : 3500);
 }
 function modal(content) {
-  modal.previousFocus = document.activeElement;
+  if (state.modalBusy) return false;
+  if ($('#modal').classList.contains('hidden')) modal.previousFocus = document.activeElement;
+  state.dialogVersion = (state.dialogVersion || 0) + 1;
   $('#modal-content').innerHTML = content;
+  $('#modal-feedback').textContent = '';
+  $('#modal-feedback').classList.add('hidden');
   $('#modal').classList.remove('hidden');
-  const focus = $('#modal-content').querySelector('input:not([type="hidden"]),textarea,select,button');
+  $('#app').inert = true; $('#setup-blog-screen').inert = true;
+  const focus = $('#modal-content').querySelector('input:not([type="hidden"]):not(:disabled),textarea,select,button:not(:disabled)');
   (focus || $('#modal-close')).focus();
+  return true;
 }
-function closeModal() {
-  if (state.connecting) return;
+function closeModal(force = false) {
+  if (force !== true && (state.connecting || state.modalBusy)) return;
+  state.dialogVersion = (state.dialogVersion || 0) + 1;
   $('#modal').classList.add('hidden'); $('#modal-content').innerHTML = '';
-  if (modal.previousFocus?.isConnected) modal.previousFocus.focus();
+  $('#modal-feedback').classList.add('hidden');
+  $('#app').inert = false; $('#setup-blog-screen').inert = false;
+  if (force !== true && modal.previousFocus?.isConnected) modal.previousFocus.focus();
+}
+async function modalAction(button, action, label = t("处理中…")) {
+  if (!button || button.disabled || state.modalBusy || state.connecting) return { ok: false };
+  const version = state.dialogVersion;
+  const content = $('#modal-content'), feedback = $('#modal-feedback');
+  const controls = [...content.querySelectorAll('button,input,select,textarea'), $('#modal-close')];
+  const disabled = controls.map(control => control.disabled);
+  const original = button.textContent;
+  state.modalBusy = true;
+  controls.forEach(control => control.disabled = true);
+  content.setAttribute('aria-busy', 'true'); button.textContent = label;
+  feedback.dataset.tone = 'pending'; feedback.setAttribute('role', 'status');
+  feedback.textContent = label; feedback.classList.remove('hidden'); feedback.focus();
+  try {
+    const value = await action();
+    if (version !== state.dialogVersion) return { ok: false };
+    feedback.classList.add('hidden');
+    return { ok: true, value };
+  } catch (error) {
+    if (version === state.dialogVersion) {
+      feedback.dataset.tone = 'error'; feedback.setAttribute('role', 'alert'); feedback.textContent = error.message;
+    }
+    return { ok: false };
+  } finally {
+    state.modalBusy = false;
+    content.removeAttribute('aria-busy');
+    controls.forEach((control, i) => { if (control.isConnected) control.disabled = disabled[i]; });
+    if (button.isConnected) {
+      button.textContent = original;
+      if (version === state.dialogVersion) button.focus();
+    }
+  }
 }
 async function withButton(button, action, label = t("处理中…")) {
   if (!button || button.disabled) return;
@@ -353,16 +394,17 @@ async function gitUnstage(path) { return gitAction('unstage', { path }, t("已�
 async function showGitDiff(path, area) {
   modal(`<h2 id="modal-title">${area === 'staged' ? t("暂存差异") : t("工作区差异")}</h2><p>${escapeHTML(path)}</p><pre id="git-diff-content" class="git-diff-content">${t("正在读取差异…")}</pre><div class="actions"><button id="close-diff" class="secondary">${t("关闭")}</button></div>`);
   $('#close-diff').onclick = closeModal;
+  const target = $('#git-diff-content');
   try {
     const result = await api('git/diff', { params: { path, area } });
-    if ($('#git-diff-content')) {
+    if (target.isConnected && $('#git-diff-content') === target) {
       const content = result.content + (result.truncated ? t("\n…差异过长，已截断") : '');
-      $('#git-diff-content').innerHTML = content.split('\n').map(line => {
+      target.innerHTML = content.split('\n').map(line => {
         const style = line.startsWith('+') && !line.startsWith('+++') ? 'diff-add' : line.startsWith('-') && !line.startsWith('---') ? 'diff-remove' : line.startsWith('@@') ? 'diff-hunk' : '';
         return `<span class="${style}">${escapeHTML(line)}</span>`;
       }).join('\n');
     }
-  } catch (error) { if ($('#git-diff-content')) $('#git-diff-content').textContent = error.message; }
+  } catch (error) { if (target.isConnected && $('#git-diff-content') === target) target.textContent = error.message; }
 }
 async function gitCommit() {
   const message = $('#git-message').value.trim();
@@ -443,23 +485,26 @@ async function chooseDirectory() { const selected = await window.hexoStudio?.sel
 function localDateTime() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`; }
 function showNewPost(kind = 'post') { if (state.gitBusy) return toast(t("Git 操作正在进行，请稍候")); if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? t("草稿") : state.newKind === 'page' ? t("页面") : t("文章"); const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? t("source/页面路径/index.md") : 'source/_posts'; modal(`<h2 id="modal-title">${t`新建${label}`}</h2><p>${t`给${label}取个名字，HexoStudio 会在 ${folder} 中创建 Markdown 文件。`}</p><label for="new-title">${t`${label}标题`}</label><input id="new-title" placeholder="${t`写下${label}标题`}"><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="create-post">${t("创建并编辑")}</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
 async function createPost() {
+  if (state.modalBusy) return;
   const title = $('#new-title').value.trim();
   if (!title) { toast(t("请填写标题")); $('#new-title').focus(); return; }
-  return withButton($('#create-post'), async () => {
-    const kind = state.newKind;
+  const kind = state.newKind;
+  const result = await modalAction($('#create-post'), async () => {
     const post = await api('posts', { method: 'POST', data: { title, localDate: localDateTime(), kind } });
-    closeModal();
     try { await refreshPosts(); } catch (error) { toast(t`内容已创建，列表刷新失败：${error.message}`, 'error'); }
-    await openPost(post.path, kind, true);
+    return post;
   }, t("正在创建…"));
+  if (!result.ok) return;
+  closeModal();
+  await openPost(result.value.path, kind, true);
 }
 async function refreshPosts() { const root = state.root; const [posts, drafts, pages] = await Promise.all([api('posts'), api('posts', { params: { kind: 'draft' } }), api('posts', { params: { kind: 'page' } })]); if (root !== state.root) return; state.posts = posts.posts; state.drafts = drafts.posts; state.pages = pages.posts; }
 async function openPost(path, kind = 'post', skipGuard = false) {
   if (!skipGuard && ((state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig()))) return;
   const request = state.contentRequest = {};
-  const root = state.root, view = state.view;
+  const root = state.root, view = state.view, dialogVersion = state.dialogVersion;
   const buffer = state.editorBuffer, metadata = JSON.stringify(state.metadataValues), configBuffer = state.configBuffer;
-  const active = () => state.contentRequest === request && state.root === root && state.view === view;
+  const active = () => state.contentRequest === request && state.root === root && state.view === view && state.dialogVersion === dialogVersion;
   try {
     const post = await api('post', { params: { path, kind } });
     if (!active()) return;
@@ -530,38 +575,41 @@ async function requestPublish(path) {
   modal(`<h2 id="modal-title">${t("发布草稿？")}</h2><p>${t("将")} <strong>${escapeHTML(draft.title)}</strong> ${t("移入 source/_posts。发布后可继续编辑，再到「构建与部署」生成静态站点。")}</p><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="confirm-publish">${t("发布为文章")}</button></div>`);
   $('#cancel-modal').onclick = closeModal;
   $('#confirm-publish').onclick = async () => {
-    $('#confirm-publish').disabled = true;
-    try {
+    const outcome = await modalAction($('#confirm-publish'), async () => {
       const result = await api('publish', { method: 'POST', data: { path, modified: draft.modified, localDate: localDateTime() } });
       clearDraft(path, 'draft');
       let refreshError;
       state.drafts = state.drafts.filter(item => item.path !== path);
       try { await refreshPosts(); } catch (error) { refreshError = error; }
-      closeModal();
-      state.current = null;
-      state.editorDirty = false;
-      state.contentKind = 'post';
-      state.view = 'posts';
-      render();
-      toast(refreshError ? t`草稿已发布，列表刷新失败：${refreshError.message}` : t`草稿已发布：${result.path}`, refreshError ? 'error' : 'success');
-    } catch (error) { toast(error.message, 'error'); if ($('#confirm-publish')) $('#confirm-publish').disabled = false; }
+      return { result, refreshError };
+    }, t("正在发布…"));
+    if (!outcome.ok) return;
+    const { result, refreshError } = outcome.value;
+    closeModal();
+    state.current = null; state.editorDirty = false; state.contentKind = 'post'; state.view = 'posts';
+    render();
+    toast(refreshError ? t`草稿已发布，列表刷新失败：${refreshError.message}` : t`草稿已发布：${result.path}`, refreshError ? 'error' : 'success');
   };
 }
 function confirmDelete(path, kind = 'post') {
   const label = kind === 'draft' ? t("草稿") : kind === 'page' ? t("页面") : t("文章");
   modal(`<h2 id="modal-title">${t("删除")}${label}？</h2><p>${t("这会从 Hexo 源码目录删除")} <strong>${escapeHTML(path)}</strong>${t("。此操作无法在后台撤销。")}</p><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="secondary danger" id="confirm-delete">${t("删除")}${label}</button></div>`);
   $('#cancel-modal').onclick = closeModal;
-  $('#confirm-delete').onclick = () => withButton($('#confirm-delete'), async () => {
-    await api('post', { method: 'DELETE', params: { path, kind } });
-    clearDraft(path, kind);
-    const key = kind === 'draft' ? 'drafts' : kind === 'page' ? 'pages' : 'posts';
-    state[key] = state[key].filter(item => item.path !== path);
-    closeModal();
-    let refreshError;
-    try { await refreshPosts(); } catch (error) { refreshError = error; }
-    render();
+  $('#confirm-delete').onclick = async () => {
+    const outcome = await modalAction($('#confirm-delete'), async () => {
+      await api('post', { method: 'DELETE', params: { path, kind } });
+      clearDraft(path, kind);
+      const key = kind === 'draft' ? 'drafts' : kind === 'page' ? 'pages' : 'posts';
+      state[key] = state[key].filter(item => item.path !== path);
+      let refreshError;
+      try { await refreshPosts(); } catch (error) { refreshError = error; }
+      return refreshError;
+    }, t("正在删除…"));
+    if (!outcome.ok) return;
+    closeModal(); render();
+    const refreshError = outcome.value;
     toast(refreshError ? t`${label}已删除，列表刷新失败：${refreshError.message}` : t`${label}已删除`, refreshError ? 'error' : 'success');
-  }, t("正在删除…"));
+  };
 }
 function updateConfigStatus() {
   const status = $('#config-status');
@@ -812,46 +860,42 @@ $('#account-settings').onclick = () => {
   $('#cancel-password').onclick = closeModal;
   $('#password-form').onsubmit = async event => {
     event.preventDefault();
+    if (state.modalBusy) return;
     if ($('#new-password').value !== $('#confirm-password').value) return toast(t("两次输入的新密码不一致"));
     if (!canLeaveEditor() || !canLeaveConfig()) return;
-    const submit = $('#password-form button[type="submit"]');
-    submit.disabled = true;
-    try {
-      await api('auth/password', { method: 'POST', data: { oldPassword: $('#old-password').value, newPassword: $('#new-password').value } });
-      closeModal();
-      state.csrf = null;
-      state.current = null;
-      state.config = null;
-      state.configDirty = false;
-      $('#view').replaceChildren();
-      showAuth(true);
-      toast(t("密码已更新，请重新登录"));
-    } catch (error) { toast(error.message, 'error'); submit.disabled = false; }
+    const data = { oldPassword: $('#old-password').value, newPassword: $('#new-password').value };
+    const outcome = await modalAction($('#password-form button[type="submit"]'), () => api('auth/password', { method: 'POST', data }), t("正在保存…"));
+    if (!outcome.ok) return;
+    closeModal();
+    state.csrf = null; state.current = null; state.config = null; state.configDirty = false;
+    $('#view').replaceChildren(); showAuth(true);
+    toast(t("密码已更新，请重新登录"));
   };
 };
 $('#account-storage').onclick = async () => {
+  if (modal(`<h2 id="modal-title">${t("账号存储")}</h2><p>${t("正在读取账号存储…")}</p>`) === false) return;
+  const version = state.dialogVersion;
   let current;
   try { current = (await api('auth/storage')).storage; }
-  catch (error) { return toast(error.message, 'error'); }
+  catch (error) { if (version === state.dialogVersion) { closeModal(); toast(error.message, 'error'); } return; }
+  if (version !== state.dialogVersion) return;
   modal(`<h2 id="modal-title">${t("账号存储")}</h2><p id="current-storage"></p><form id="storage-form"><label>${t("目标存储")}<select id="move-storage-type"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option><option value="mongodb">MongoDB</option></select></label><div id="move-storage-fields"></div><label>${t("当前管理员密码")}<input id="move-password" type="password" autocomplete="current-password" required></label><p>${t("切换后需要重新登录。原数据库中的账号记录会保留，便于手动回退。")}</p><div class="actions"><button id="move-test" type="button" class="secondary">${t("测试连接")}</button><button id="move-submit" type="submit" class="primary">${t("迁移并退出")}</button></div></form>`);
   $('#current-storage').textContent = t`当前：${current.type} · ${current.label}`;
   $('#move-storage-type').value = ['postgres', 'mysql', 'mongodb'].includes(current.type) ? current.type : 'postgres';
   storageFields($('#move-storage-type').value, 'move');
   $('#move-storage-type').onchange = () => storageFields($('#move-storage-type').value, 'move');
   $('#move-test').onclick = async () => {
-    $('#move-test').disabled = true;
-    try { await api('auth/storage/test', { method: 'POST', data: { storage: storageValue('move') } }); toast(t("存储连接成功")); }
-    catch (error) { toast(error.message, 'error'); }
-    finally { if ($('#move-test')) $('#move-test').disabled = false; }
+    const storage = storageValue('move');
+    const outcome = await modalAction($('#move-test'), () => api('auth/storage/test', { method: 'POST', data: { storage } }), t("正在验证…"));
+    if (outcome.ok) toast(t("存储连接成功"));
   };
   $('#storage-form').onsubmit = async event => {
     event.preventDefault();
-    if (!canLeaveEditor() || !canLeaveConfig()) return;
-    $('#move-submit').disabled = true;
-    try {
-      await api('auth/storage/migrate', { method: 'POST', data: { password: $('#move-password').value, storage: storageValue('move') } });
-      closeModal(); state.csrf = null; $('#view').replaceChildren(); showAuth(true); toast(t("账号已迁移，请重新登录"));
-    } catch (error) { toast(error.message, 'error'); if ($('#move-submit')) $('#move-submit').disabled = false; }
+    if (state.modalBusy || !canLeaveEditor() || !canLeaveConfig()) return;
+    const data = { password: $('#move-password').value, storage: storageValue('move') };
+    const outcome = await modalAction($('#move-submit'), () => api('auth/storage/migrate', { method: 'POST', data }), t("正在迁移…"));
+    if (!outcome.ok) return;
+    closeModal(); state.csrf = null; $('#view').replaceChildren(); showAuth(true); toast(t("账号已迁移，请重新登录"));
   };
 };
 $('#top-new').onclick = () => showNewPost((state.view === 'pages' || (state.view === 'editor' && state.current?.kind === 'page')) ? 'page' : 'post');
@@ -861,6 +905,7 @@ document.addEventListener('keydown', event => {
   const modalOpen = !$('#modal').classList.contains('hidden');
   if (event.key === 'Escape' && modalOpen) closeModal();
   if (event.key === 'Tab' && modalOpen) {
+    if (state.modalBusy) { event.preventDefault(); $('#modal-feedback').focus(); return; }
     const focusable = [...$('#modal').querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),a[href],summary')].filter(el => el.getClientRects().length);
     const first = focusable[0], last = focusable.at(-1);
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
@@ -916,7 +961,7 @@ document.addEventListener('hexostudio:language', () => {
   document.getElementById(active)?.focus({ preventScroll: true });
 });
 
-window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.busy || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.modalBusy || state.busy || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
     const status = await api('auth/status');

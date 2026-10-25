@@ -284,6 +284,8 @@ input:read-only, textarea:read-only { background: var(--raised); }
 /* Forms, dialogs and account setup */
 .modal-backdrop { position: fixed; inset: 0; display: grid; place-items: center; background: #1c243561; backdrop-filter: blur(2px); padding: 20px; z-index: 10; }
 .modal { width: min(520px, 100%); max-height: calc(100dvh - 40px); overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 28px; position: relative; box-shadow: 0 24px 80px #121b2d26; }
+.modal-feedback { margin-top: 16px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 7px; background: var(--raised); color: var(--muted); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.modal-feedback[data-tone="error"] { background: var(--danger-bg); color: var(--danger); border-color: var(--danger-border); }
 .modal h2 { margin: 0 0 10px; font-size: 20px; font-weight: 600; letter-spacing: -.4px; padding-right: 20px; }
 .modal p { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 0 0 20px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
