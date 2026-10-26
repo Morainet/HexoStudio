@@ -1,6 +1,21 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "可刷新": "Refresh",
+  "网站已更新，刷新后即可使用。": "This website has been updated. Refresh to use the new version.",
+  "刷新页面": "Refresh page",
+  "请等待当前操作完成后刷新": "Wait for the current operation to finish before refreshing.",
+  "应用有新版本可安装": "An app update is available to install",
+  "网站服务有新版可部署": "A newer website release is available to deploy",
+  "当前应用没有更新的正式版": "No newer stable app release is available",
+  "当前部署没有更新的正式版": "No newer stable release is available for this deployment",
+  "应用更新": "App updates",
+  "网站更新": "Website updates",
+  "已安装版本": "Installed version",
+  "当前部署版本": "Deployed version",
+  "下载新版": "Download update",
+  "网页更新由当前服务器检测；正式版本来自 GitHub，结果缓存 1 分钟。": "Page updates are checked against this server. Stable releases come from GitHub and are cached for 1 minute.",
+
   "版本与更新": "Version & updates",
   "有新版": "New",
   "发现新版本": "A new version is available",

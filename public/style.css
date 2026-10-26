@@ -516,3 +516,8 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 
 #version-updates { gap: 8px; }
 #version-updates > .icon { flex-shrink: 0; }
+
+.web-update-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 36px 0; padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; color: var(--accent); background: var(--brand-soft); font-size: 12px; }
+.web-update-notice button { flex-shrink: 0; }
+#update-web-ready p { margin-bottom: 12px; color: inherit; }
+@media (max-width: 700px) { .web-update-notice { margin: 12px 16px 0; flex-wrap: wrap; } }

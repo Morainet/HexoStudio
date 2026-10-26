@@ -80,9 +80,14 @@ function staticFile(req, res, pathname) {
     'Content-Type': types[name].startsWith('text/') ? `${types[name]}; charset=utf-8` : types[name],
     'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
     'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'no-referrer'
+    'Referrer-Policy': 'no-referrer',
+    'Cache-Control': 'no-cache'
   });
   if (req.method === 'HEAD') return res.end();
+  if (name === 'index.html') {
+    const html = fs.readFileSync(path.join(process.env.HEXOSTUDIO_PUBLIC_DIR || publicDir, name), 'utf8');
+    return res.end(html.replace('__HEXOSTUDIO_BUILD__', require('./build-info.cjs').buildInfo().buildId));
+  }
   fs.createReadStream(path.join(process.env.HEXOSTUDIO_PUBLIC_DIR || publicDir, name)).on('error', error => res.destroy(error)).pipe(res);
 }
 
@@ -137,6 +142,7 @@ async function handle(req, res) {
       const storage = await auth.moveStorage(req, data.password, data.storage);
       return send(res, 200, { storage }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
     }
+    if (req.method === 'GET' && url.pathname === '/api/version') return send(res, 200, require('./build-info.cjs').buildInfo());
     if (req.method === 'GET' && url.pathname === '/api/updates') return send(res, 200, await require('./updates.cjs').checkUpdates());
     if (req.method === 'GET' && url.pathname === '/api/status') {
       let root = null;

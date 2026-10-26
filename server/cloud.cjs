@@ -27,6 +27,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         const input=await body(req),result=await auth.login(input);return send(res,200,{authenticated:true,username:input.username,csrf:result.csrf},{'Set-Cookie':result.cookie});
       }
       auth.require(data,req,req.method!=='GET');
+      if(route==='/api/version'&&req.method==='GET')return send(res,200,require('./build-info.cjs').buildInfo());
       if(route==='/api/updates'&&req.method==='GET')return send(res,200,await checkUpdates());
       if(route==='/api/auth/logout'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.logout(req)});
       if(route==='/api/auth/password'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.password(req,await body(req))});

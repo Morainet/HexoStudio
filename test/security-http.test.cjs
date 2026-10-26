@@ -46,6 +46,13 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
   for (const name of ['package.json', 'desktop/icons/icon.png', 'constructor']) {
     assert.equal((await fetch(`${url}/${name}`)).status, 404);
   }
+  assert.equal((await fetch(`${url}/api/version`)).status, 401);
+  const version = await fetch(`${url}/api/version`, { headers: { Authorization: `Bearer ${token}` } });
+  const info = await version.json();
+  assert.match(info.buildId, /^[a-f0-9]{64}$/);
+  const html = await fetch(`${url}/`);
+  assert.equal(html.headers.get('cache-control'), 'no-cache');
+  assert.match(await html.text(), new RegExp(`content="${info.buildId}"`));
   const write = headers => fetch(`${url}/api/config`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ scope: 'theme:demo', content: 'overwritten: true\n' })
