@@ -66,7 +66,7 @@ test('successful configuration save updates the conflict version and clears dirt
   await ctx.saveConfig();
   assert.equal(state.config.content, 'new'); assert.equal(state.config.modified, 'after');
   assert.equal(state.configBuffer, 'new'); assert.equal(state.configDirty, false);
-  assert.equal($('#scope').disabled, false);
+  assert.equal($('#back-configs').disabled, false);
 });
 test('command stream handles split UTF-8 and final record without newline', async () => {
   const $ = ui(); const state = {view:'deploy'}; const notices=[];
@@ -180,8 +180,9 @@ test('configuration loads cannot win over a newer article or navigation', async 
   const next = ctx.loadConfig();
   await ctx.navigate('posts'); const navigation = ctx.navigate('config');
   requests[2].reject(new Error('stale error')); assert.equal(await next, false);
-  requests[3].resolve({scope:'site',content:'latest'}); await navigation;
-  assert.equal(state.config.content, 'latest');
+  requests[3].resolve({files:[{scope:'site',path:'_config.yml'}]}); await navigation;
+  assert.equal(state.configScreen, 'list');
+  assert.equal(state.configFiles[0].scope, 'site');
 });
 
 test('account changes do not submit when unsaved configuration departure is canceled', async () => {
@@ -211,17 +212,33 @@ test('unchanged configuration does not create redundant remote commits', async (
   assert.equal($('#save-config').disabled, true);
 });
 
-test('configuration search treats special characters literally and keeps original text offsets', () => {
-  const ctx = load('function configIndex(', 'function configPage()', {});
-  const content = '# title: ignored\r\ntitle: [Blog.*]\r\nmenu:\r\n  home: /\r\nurl: https://blog.test';
-  const matches = ctx.configMatches(content, '[blog.*]');
-  assert.equal(matches.length, 1);
-  assert.equal(content.slice(matches[0].start, matches[0].end), '[Blog.*]');
-  assert.equal(ctx.configMatches(content, '').length, 0);
-  assert.equal(ctx.configMatches(content, 'missing').length, 0);
-  const entries = ctx.configIndex(content, 'YAML');
-  assert.deepEqual(Array.from(entries, x=>x.name), ['title','menu','url']);
-  assert.equal(entries[0].line, 2);
-  assert.equal(content.slice(entries[2].offset, entries[2].offset + 4), 'url:');
-  assert.deepEqual(Array.from(ctx.configIndex('{\n  "title": "Blog",\n  "menu": {}\n}', 'JSON'), x=>x.name), ['title','menu']);
+test('configuration navigation opens the file list before loading an editor', async () => {
+  const {ctx,state,requests} = contentFixture();
+  const list = ctx.navigate('config');
+  assert.equal(requests[0].name, 'configs');
+  requests[0].resolve({files:[{scope:'site',path:'_config.yml',bytes:12}]}); await list;
+  assert.equal(state.configScreen, 'list'); assert.equal(state.config, null);
+  const editor = ctx.loadConfig('site');
+  assert.equal(requests[1].options.params.scope, 'site');
+  requests[1].resolve({scope:'site',content:'title: Blog',modified:'v1'}); await editor;
+  assert.equal(state.configScreen, 'editor'); assert.equal(state.configBuffer, 'title: Blog');
+});
+
+test('returning to configurations protects unsaved edits and preserves them on a failed list refresh', async () => {
+  const {ctx,state,requests} = contentFixture({view:'config',configScreen:'editor',config:{scope:'site',content:'old'},configBuffer:'unsaved',configDirty:true});
+  ctx.window.confirm=()=>false;
+  assert.equal(await ctx.loadConfigs(), false); assert.equal(requests.length, 0);
+  ctx.window.confirm=()=>true;
+  const failed = ctx.loadConfigs(); requests[0].reject(new Error('offline')); await failed;
+  assert.equal(state.configBuffer, 'unsaved'); assert.equal(state.configDirty, true); assert.equal(state.configScreen, 'editor');
+  const retry = ctx.loadConfigs(); requests[1].resolve({files:[]}); await retry;
+  assert.equal(state.configDirty, false); assert.equal(state.config, null); assert.equal(state.configScreen, 'list');
+});
+
+test('a slow configuration editor cannot reopen after returning to the list', async () => {
+  const {ctx,state,requests} = contentFixture({view:'config',configScreen:'list',configFiles:[]});
+  const editor = ctx.loadConfig('site');
+  const list = ctx.loadConfigs(); requests[1].resolve({files:[]}); await list;
+  requests[0].resolve({scope:'site',content:'stale'}); assert.equal(await editor, false);
+  assert.equal(state.configScreen, 'list'); assert.equal(state.config, null);
 });

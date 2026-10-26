@@ -219,6 +219,7 @@ async function handle(req, res) {
       const data = await body(req);
       return send(res, 200, core.publishDraft(root, data.path, data.modified, data.localDate));
     }
+    if (req.method === 'GET' && url.pathname === '/api/configs') return send(res, 200, { files: core.listConfigs(root) });
     if (req.method === 'GET' && url.pathname === '/api/config') {
       const scope = url.searchParams.get('scope') || 'site';
       const file = core.configPath(root, scope);

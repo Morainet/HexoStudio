@@ -87,6 +87,9 @@ test('cloud content covers articles, drafts, pages, configs, images and optimist
   assert.equal((await content.list('draft')).length,0);
   const page=await content.create({title:'About',kind:'page'});
   assert.equal(page.path,'about/index.md');assert.equal((await content.list('page')).length,1);
+  const configs=await content.configs();
+  assert.deepEqual(configs.map(x=>x.scope),['site','theme:landscape']);
+  assert.equal(configs[0].bytes,Buffer.byteLength('title: Cloud blog\ntheme: landscape\n'));
   const cfg=await content.config();assert.deepEqual(cfg.themes,['landscape']);
   await content.saveConfig({scope:'site',content:'# retained\ntitle: Changed\n',modified:cfg.modified});
   assert.match((await content.config()).content,/# retained/);

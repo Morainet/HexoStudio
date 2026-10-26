@@ -73,6 +73,9 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
   assert.equal(read.status, 400);
   assert.doesNotMatch(await read.text(), /secret: untouched/);
   assert.equal(fs.readFileSync(sentinel, 'utf8'), 'secret: untouched\n');
+  assert.equal((await fetch(`${url}/api/configs`)).status,401);
+  const files=await (await fetch(`${url}/api/configs`,{headers:{Authorization:`Bearer ${token}`}})).json();
+  assert.deepEqual(files.files.map(file=>file.scope),['site']);
   const safe = await fetch(`${url}/api/config?scope=site`, { headers: { Authorization: `Bearer ${token}` } });
   assert.equal(safe.status, 200);
   assert.equal((await safe.json()).content, 'title: Temporary test\n');

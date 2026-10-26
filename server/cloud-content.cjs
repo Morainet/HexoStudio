@@ -68,6 +68,17 @@ class CloudContent {
     await this.repo.commit(snapshot,[{path:this.repo.path(articlePath(data.path,'draft')),expected:draft.modified,content:null},{path:this.repo.path(articlePath(name,'post')),expected:null,content}],`Publish draft: ${name}`);
     return this.read(await this.repo.snapshot(),name,'post');
   }
+  async configs(){
+    const snapshot=await this.repo.snapshot(), files=[];
+    for(const entry of snapshot.entries){
+      const name=this.repo.relative(entry.path);if(!name)continue;
+      const theme=name.match(/^themes\/([a-z0-9_-]+)\/_config.yml$/i);
+      const scope=name==='_config.yml'?'site':/^_config\.[a-z0-9_-]+\.(yml|yaml|json)$/i.test(name)?`override:${name}`:theme?`theme:${theme[1]}`:null;
+      if(scope)files.push({scope,path:name,bytes:Number.isSafeInteger(entry.size)&&entry.size>=0?entry.size:null,kind:scope==='site'?'site':theme?'theme':'override'});
+    }
+    const order={site:0,override:1,theme:2};
+    return files.sort((a,b)=>order[a.kind]-order[b.kind]||a.path.localeCompare(b.path));
+  }
   async config(scope='site'){
     const snapshot=await this.repo.snapshot(),file=await this.repo.read(snapshot,this.repo.path(configName(scope))),names=snapshot.entries.map(x=>this.repo.relative(x.path)).filter(Boolean);
     return {scope,content:file.buffer.toString('utf8'),modified:file.modified,themes:names.map(x=>x.match(/^themes\/([\w-]+)\/_config.yml$/)?.[1]).filter(Boolean),overrides:names.filter(x=>/^_config\.[a-z0-9_-]+\.(yml|yaml|json)$/i.test(x))};

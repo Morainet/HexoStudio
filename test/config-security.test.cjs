@@ -67,3 +67,18 @@ test('regular config files remain editable; broken links and directories are rej
   fs.mkdirSync(path.join(root, '_config.yml'));
   assert.throws(() => core.configPath(root, 'site'), /配置文件/);
 });
+
+
+test('configuration listing exposes only editable files and reports byte sizes', t => {
+  const {root,external}=fixture(t);
+  fs.mkdirSync(path.join(root,'themes','demo'),{recursive:true});
+  fs.writeFileSync(path.join(root,'themes','demo','_config.yml'),'menu: {}\n');
+  fs.writeFileSync(path.join(root,'_config.demo.yml'),'title: 中文\n');
+  fs.writeFileSync(path.join(root,'credentials.json'),'secret');
+  fs.symlinkSync(path.join(external,'_config.yml'),path.join(root,'_config.link.yml'));
+  const files=core.listConfigs(root);
+  assert.deepEqual(files.map(x=>x.scope),['site','override:_config.demo.yml','theme:demo']);
+  assert.deepEqual(files.map(x=>x.path),['_config.yml','_config.demo.yml','themes/demo/_config.yml']);
+  assert.equal(files[1].bytes,Buffer.byteLength('title: 中文\n'));
+  for(const file of files)assert.ok(core.configPath(root,file.scope));
+});

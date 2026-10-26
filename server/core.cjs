@@ -246,6 +246,15 @@ function listThemes(root) {
     .map(x => x.name);
 }
 
+function listConfigs(root) {
+  const scopes = ['site', ...listThemeOverrides(root).sort().map(name => `override:${name}`), ...listThemes(root).sort().map(name => `theme:${name}`)];
+  return scopes.map(scope => {
+    const file = configPath(root, scope);
+    return { scope, path: path.relative(root, file).split(path.sep).join('/'), bytes: fs.statSync(file).size,
+      kind: scope === 'site' ? 'site' : scope.startsWith('override:') ? 'override' : 'theme' };
+  });
+}
+
 function runHexo(root, action, onData) {
   if (!['clean', 'generate', 'deploy'].includes(action)) throw new Error('不支持的命令');
   const bin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'hexo.cmd' : 'hexo');
@@ -256,4 +265,4 @@ function runHexo(root, action, onData) {
   return child;
 }
 
-module.exports = { validateProject, siteInfo, safePostPath, safeArticlePath, parsePost, listPosts, createPost, readPost, savePost, deletePost, publishDraft, configPath, listThemes, listThemeOverrides, runHexo };
+module.exports = { validateProject, siteInfo, safePostPath, safeArticlePath, parsePost, listPosts, createPost, readPost, savePost, deletePost, publishDraft, configPath, listThemes, listThemeOverrides, listConfigs, runHexo };

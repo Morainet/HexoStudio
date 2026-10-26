@@ -66,6 +66,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         if(req.method==='DELETE')return send(res,200,await content.remove(name,kind,url.searchParams.get('modified')));
       }
       if(route==='/api/publish'&&req.method==='POST')return send(res,200,await content.publish(await body(req)));
+      if(route==='/api/configs'&&req.method==='GET')return send(res,200,{files:await content.configs()});
       if(route==='/api/config'&&req.method==='GET')return send(res,200,await content.config(url.searchParams.get('scope')||'site'));
       if(route==='/api/config'&&req.method==='PUT')return send(res,200,await content.saveConfig(await body(req)));
       if(route==='/api/assets'&&req.method==='GET')return send(res,200,{images:await content.images()});

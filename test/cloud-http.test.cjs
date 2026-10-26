@@ -11,7 +11,7 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   const store=versionedStore(fn=>fn({async read(){return {...record};},async cas(version,payload){if(version!==record.revision)return false;record={revision:version+1,payload};return true;}}),cipher);
   const repository=connection=>{
     const paths=new RemoteRepository(connection);paths.connection.branch||='main';
-    return {connection:paths.connection,path:name=>paths.path(name),async snapshot(){return {};},async read(){return {buffer:Buffer.from('title: Cloud\ntheme: test')};}};
+    return {connection:paths.connection,path:name=>paths.path(name),relative:name=>paths.relative(name),async snapshot(){return {entries:[{path:'_config.yml',size:24}]};},async read(){return {buffer:Buffer.from('title: Cloud\ntheme: test')};}};
   };
   let updateChecks=0;
   const checkUpdates=async()=>{updateChecks++;return {currentVersion:'0.8.0',status:'no-release'};};
@@ -25,6 +25,7 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   assert.equal((await call('/')).status,200);
   assert.equal((await call('/api/health')).status,200);
   assert.equal((await call('/api/status')).status,401);
+  assert.equal((await call('/api/configs')).status,401);
   assert.equal((await call('/api/updates')).status,401);
   assert.equal((await call('/api/version')).status,401);
   assert.deepEqual(await (await call('/api/auth/status')).json(),{cloud:true,configured:false,authenticated:false,username:null,csrf:null});
@@ -61,6 +62,8 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   const status=await (await call('/api/status')).json();assert.equal(status.mode,'cloud');assert.equal(status.site.title,'Cloud');
   assert.equal(JSON.stringify(status).includes('very-private-token'),false);
   assert.equal(status.connection.branch,'main');
+  const files=await (await call('/api/configs')).json();
+  assert.deepEqual(files,{files:[{scope:'site',path:'_config.yml',bytes:24,kind:'site'}]});
   assert.equal((await call('/api/project','POST',{root:'/tmp'})).status,400);
   assert.equal((await call('/api/command','POST',{command:'generate'})).status,409);
   assert.equal((await call('/api/auth/storage','GET')).status,409);

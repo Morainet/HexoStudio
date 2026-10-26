@@ -346,95 +346,43 @@ async function uploadImages(files) {
   } catch (error) { toast(t`上传失败：${error.message}`); }
   finally { state.uploading = false; button.disabled = false; if ($('#editor-status')) $('#editor-status').textContent = state.editorDirty ? t("未保存更改") : t("所有更改已保存"); }
 }
-function configIndex(content, format) {
-  const entries = [];
-  let offset = 0;
-  content.split('\n').forEach((line, index) => {
-    const match = format === 'JSON' ? /^\s*"([^"\\]+)"\s*:/.exec(line) : /^([\w.-]+)\s*:/.exec(line);
-    if (match) entries.push({ name: match[1], offset, line: index + 1 });
-    offset += line.length + 1;
-  });
-  return entries;
+function configFileLabel(scope) {
+  return scope === 'site' ? '_config.yml' : scope.startsWith('override:') ? scope.slice(9) : `themes/${scope.slice(6)}/_config.yml`;
 }
-function configMatches(content, query) {
-  if (!query) return [];
-  const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-  return Array.from(content.matchAll(pattern), match => ({ start: match.index, end: match.index + match[0].length }));
+function configFilesPage() {
+  const files = state.configFiles || [];
+  const prefs = state.configListPrefs ||= { page: 1 };
+  const pages = Math.max(1, Math.ceil(files.length / 20));
+  prefs.page = Math.max(1, Math.min(prefs.page, pages));
+  const visible = files.slice((prefs.page - 1) * 20, prefs.page * 20);
+  const kinds = {site: t("站点配置"), override: t("主题覆盖配置"), theme: t("主题目录配置")};
+  const size = bytes => Number.isSafeInteger(bytes) && bytes >= 0 ? bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB` : '—';
+  $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("选择要编辑的配置文件。"), `<button id="refresh-configs" class="secondary">${t("刷新列表")}</button>`)}
+    <section class="panel config-files-panel"><div class="config-files-header"><h3>${t("配置文件")}</h3><span>${files.length}</span></div>
+    <div class="config-table-wrap"><table class="config-files-table"><thead><tr><th scope="col">${t("文件名称")}</th><th scope="col">${t("大小")}</th><th scope="col">${t("操作")}</th></tr></thead><tbody>${visible.length ? visible.map(file => `<tr><td><div class="config-file-row"><span class="config-file-icon">${icon('settings')}</span><div><button class="config-file-name" data-config-open="${escapeHTML(file.scope)}">${escapeHTML(file.path)}</button><small>${kinds[file.kind] || t("配置文件")}</small></div></div></td><td class="config-file-size">${size(file.bytes)}</td><td><button class="config-edit-button" data-config-open="${escapeHTML(file.scope)}" aria-label="${escapeHTML(t`编辑配置：${file.path}`)}">${icon('pen')}<span>${t("编辑")}</span></button></td></tr>`).join('') : `<tr><td colspan="3"><div class="empty">${t("未找到可编辑的配置文件")}</div></td></tr>`}</tbody></table></div>
+    ${listFooter({ total: files.length, pages }, prefs)}</section>`;
+  document.querySelectorAll('[data-config-open]').forEach(button => { button.onclick = () => loadConfig(button.dataset.configOpen); });
+  $('#refresh-configs').onclick = loadConfigs;
+  $('#list-prev').onclick = () => { prefs.page--; configFilesPage(); };
+  $('#list-next').onclick = () => { prefs.page++; configFilesPage(); };
 }
 function configPage() {
-  if (!state.config) return;
-  const config = state.config;
-  const format = config.scope.endsWith('.json') ? 'JSON' : 'YAML';
-  const options = `<optgroup label="${t("站点")}"><option value="site">_config.yml</option></optgroup>` +
-    ((config.overrides || []).length ? `<optgroup label="${t("主题覆盖配置")}">${config.overrides.map(filename => `<option value="override:${escapeHTML(filename)}">${escapeHTML(filename)}</option>`).join('')}</optgroup>` : '') +
-    ((config.themes || []).length ? `<optgroup label="${t("主题目录配置")}">${config.themes.map(theme => `<option value="theme:${escapeHTML(theme)}">${escapeHTML(theme)}${theme === state.site?.theme ? t("（当前）") : ''}</option>`).join('')}</optgroup>` : '');
-  $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("选择配置文件，快速定位并修改设置。"))}
-    <section class="panel config-workbench">
-      <div class="config-toolbar"><div class="config-file-picker"><label for="scope">${t("配置文件")}</label><select id="scope" class="scope-select">${options}</select></div><div class="config-actions"><button id="reload-config" class="secondary">${t("重新读取")}</button><button id="save-config" class="primary">${t("保存配置")}</button></div></div>
-      <div class="config-feedback"><span id="config-status" class="editor-status" role="status"></span><span>${t(state.cloud ? "保存后直接提交到远端分支" : "保存后需重新构建博客才能生效")}</span></div>
-      <p id="config-error" class="config-error" role="alert" hidden></p>
-      <div class="config-body"><aside class="config-index"><details open><summary>${t("快速定位")}</summary><nav id="config-outline" aria-label="${t("配置索引")}"></nav></details></aside><div class="config-source">
-        <div class="config-search"><label for="config-search">${icon('search')}<span class="sr-only">${t("在当前文件中查找")}</span></label><input id="config-search" type="search" placeholder="${t("查找配置项或内容…")}" autocomplete="off" spellcheck="false"><span id="config-search-count" role="status"></span><button id="config-search-prev" class="icon-button" aria-label="${t("上一个匹配")}">${icon('arrow', 'icon search-back')}</button><button id="config-search-next" class="icon-button" aria-label="${t("下一个匹配")}">${icon('arrow')}</button></div>
-        <textarea id="config-editor" class="code-area" wrap="off" spellcheck="false" aria-label="${format} ${t("配置")}" aria-describedby="config-source-hint"></textarea>
-        <div class="config-editor-footer"><span id="config-cursor"></span><span>${format} <span aria-hidden="true">·</span> <kbd>⌘ / Ctrl + S</kbd></span></div>
-      </div></div>
-    </section><p id="config-source-hint" class="config-source-hint">${t("原样编辑配置文件，保留注释与字段。请在保存前核对语法。")}</p>`;
-  const editor = $('#config-editor'), search = $('#config-search');
-  let matches = [], matchIndex = -1;
-  function cursor() {
-    const before = editor.value.slice(0, editor.selectionStart);
-    const line = before.split('\n').length, column = before.length - before.lastIndexOf('\n');
-    $('#config-cursor').textContent = t`第 ${line} 行，第 ${column} 列`;
-  }
-  function select(start, end, focus = true) {
-    if (focus) editor.focus();
-    editor.setSelectionRange(start, end);
-    const line = editor.value.slice(0, start).split('\n').length - 1;
-    editor.scrollTop = Math.max(0, line * parseFloat(getComputedStyle(editor).lineHeight) - editor.clientHeight / 3);
-    editor.scrollLeft = 0;
-    cursor();
-  }
-  function matchStatus() {
-    $('#config-search-count').textContent = !search.value ? '' : matches.length ? (matchIndex < 0 ? t`${matches.length} 处匹配` : `${matchIndex + 1} / ${matches.length}`) : t("没有匹配结果");
-    $('#config-search-prev').disabled = $('#config-search-next').disabled = !matches.length;
-  }
-  function find(direction = 1) {
-    if (!matches.length) return;
-    matchIndex = matchIndex < 0 ? (direction < 0 ? matches.length - 1 : 0) : (matchIndex + direction + matches.length) % matches.length;
-    select(matches[matchIndex].start, matches[matchIndex].end, false); matchStatus();
-  }
-  function refreshSearch() {
-    matches = configMatches(editor.value, search.value); matchIndex = -1; matchStatus();
-  }
-  function outline() {
-    const entries = configIndex(editor.value, format);
-    $('#config-outline').innerHTML = entries.length ? entries.map(entry => `<button type="button" data-config-offset="${entry.offset}"><span>${escapeHTML(entry.name)}</span><small>${entry.line}</small></button>`).join('') : `<p>${t("使用搜索定位配置内容")}</p>`;
-  }
-  $('#config-outline').onclick = event => {
-    const button = event.target.closest('[data-config-offset]');
-    if (!button) return;
-    const start = Number(button.dataset.configOffset), end = editor.value.indexOf('\n', start);
-    select(start, end < 0 ? editor.value.length : end);
-  };
-  $('#scope').value = config.scope;
-  $('#scope').onchange = async event => { const selected = event.target.value; if (!await loadConfig(selected)) event.target.value = config.scope; };
+  if (!state.config || state.configScreen === 'list') return configFilesPage();
+  const config = state.config, filename = configFileLabel(config.scope);
+  const format = filename.endsWith('.json') ? 'JSON' : 'YAML';
+  $('#view').innerHTML = `<button id="back-configs" class="config-back">${icon('arrow', 'icon config-back-arrow')}${t("返回配置列表")}</button>
+    ${pageHead('SITE SETTINGS', t("编辑配置"), escapeHTML(filename), `<button id="reload-config" class="secondary">${t("重新读取")}</button><button id="save-config" class="primary">${t("保存配置")}</button>`)}
+    <section class="panel config-edit-panel"><div class="config-edit-header"><span>${format}</span><span id="config-status" class="editor-status" role="status"></span></div><p id="config-error" class="config-error" role="alert" hidden></p>
+    <textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} ${t("配置")}"></textarea>
+    <div class="config-edit-footer"><span>${t(state.cloud ? "保存后直接提交到远端分支" : "保存后需重新构建博客才能生效")}</span><kbd>⌘ / Ctrl + S</kbd></div></section>`;
+  const editor = $('#config-editor');
   editor.value = state.configBuffer ?? config.content;
   editor.setSelectionRange(0, 0);
-  editor.oninput = () => { state.configBuffer = editor.value; state.configDirty = state.configBuffer !== state.config.content; state.configSaveError = false; state.configErrorMessage = ''; updateConfigStatus(); outline(); refreshSearch(); cursor(); };
-  editor.onclick = editor.onkeyup = editor.onselect = cursor;
-  editor.onkeydown = event => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') { event.preventDefault(); search.focus(); search.select(); }
-  };
-  search.oninput = refreshSearch;
-  search.onkeydown = event => {
-    if (event.key === 'Enter') { event.preventDefault(); find(event.shiftKey ? -1 : 1); }
-    if (event.key === 'Escape') { search.value = ''; refreshSearch(); editor.focus(); }
-  };
-  $('#config-search-prev').onclick = () => find(-1);
-  $('#config-search-next').onclick = () => find(1);
-  outline(); refreshSearch(); cursor(); updateConfigStatus();
+  editor.oninput = () => { state.configBuffer = editor.value; state.configDirty = state.configBuffer !== state.config.content; state.configSaveError = false; state.configErrorMessage = ''; updateConfigStatus(); };
+  $('#back-configs').onclick = loadConfigs;
   $('#reload-config').onclick = () => loadConfig(config.scope);
   $('#save-config').onclick = saveConfig;
+  updateConfigStatus();
 }
 function cloudRepositoryPage(deploy = false) {
   const connection = state.connection;
@@ -488,7 +436,7 @@ async function gitAction(action, data, message) {
   try {
     state.git = await api(`git/${action}`, { method: 'POST', data });
     if (action === 'commit') state.gitMessage = '';
-    if (action === 'pull') { state.config = null; state.configBuffer = null; await refreshPosts(); }
+    if (action === 'pull') { state.configFiles = null; state.configScreen = 'list'; state.config = null; state.configBuffer = null; await refreshPosts(); }
     toast(message);
   } catch (error) { toast(error.message, 'error'); }
   finally { state.gitBusy = false; if (state.view === 'git') render(); }
@@ -577,7 +525,7 @@ async function connectBlog(remote) {
   try {
     const result = await api(remote ? 'remote/connect' : 'project', { method: 'POST', data });
     state.root = result.root; state.site = result.site; state.connection = result.connection || { type: 'local' };
-    state.git = null; state.config = null; state.configBuffer = null; state.configDirty = false; state.configSaveError = false;
+    state.git = null; state.configFiles = null; state.configScreen = 'list'; state.configListPrefs = null; state.config = null; state.configBuffer = null; state.configDirty = false; state.configSaveError = false;
     state.current = null; state.editorDirty = false; state.contentKind = 'post'; state.lists = {};
     state.posts = []; state.drafts = []; state.pages = []; state.commandLog = '';
     let refreshError;
@@ -732,12 +680,34 @@ function updateConfigStatus() {
     button.textContent = state.configSaving ? t("正在保存…") : t("保存配置");
     button.disabled = Boolean(state.configSaving || !state.configDirty);
   }
+  const back = $('#back-configs');
+  if (back) back.disabled = Boolean(state.configSaving);
   const error = $('#config-error');
   if (error) { error.textContent = t(state.configErrorMessage || ''); error.hidden = !state.configSaveError; }
 }
 function canLeaveConfig() {
   if (state.configSaving) { toast(t("配置正在保存，请稍候")); return false; }
   return !state.configDirty || window.confirm(t("配置还有未保存的改动，确定放弃吗？"));
+}
+async function loadConfigs() {
+  if (state.view === 'config' && !canLeaveConfig()) return false;
+  const request = state.contentRequest = {}, root = state.root;
+  const active = () => state.contentRequest === request && state.root === root && state.view === 'config';
+  state.view = 'config'; updateShell();
+  $('#view').innerHTML = pageHead('SITE SETTINGS', t("站点配置"), t("正在读取配置列表…"));
+  try {
+    const result = await api('configs');
+    if (!active()) return false;
+    state.configFiles = result.files; state.configScreen = 'list'; state.config = null;
+    state.configBuffer = null; state.configDirty = false; state.configSaveError = false; state.configErrorMessage = '';
+    render(); return true;
+  } catch (error) {
+    if (active()) {
+      if (state.config || state.configFiles) { render(); toast(error.message, 'error'); }
+      else viewError(t("站点配置"), error.message, loadConfigs);
+    }
+    return false;
+  } finally { if (state.contentRequest === request) state.contentRequest = null; }
 }
 async function loadConfig(scope = 'site') {
   if (state.view === 'config' && !canLeaveConfig()) return false;
@@ -749,12 +719,12 @@ async function loadConfig(scope = 'site') {
   try {
     const config = await api('config', { params: { scope } });
     if (!active()) return false;
-    state.config = config; state.configBuffer = config.content; state.configDirty = false; state.configSaveError = false; state.configErrorMessage = "";
+    state.configScreen = 'editor'; state.config = config; state.configBuffer = config.content; state.configDirty = false; state.configSaveError = false; state.configErrorMessage = "";
     render(); return true;
   } catch (error) {
     if (active()) {
       // Keep the previous buffer until its replacement has loaded successfully.
-      if (state.config) { render(); toast(error.message, 'error'); }
+      if (state.config || state.configFiles) { render(); toast(error.message, 'error'); }
       else viewError(t("站点配置"), error.message, () => loadConfig(scope));
     }
     return false;
@@ -769,7 +739,7 @@ async function saveConfig() {
   state.configErrorMessage = "";
   state.configSaving = true; state.configSaveError = false; button.disabled = true; editor.readOnly = true;
   $('#reload-config').disabled = true; updateConfigStatus();
-  $('#scope').disabled = true; button.textContent = t("正在保存…");
+  button.textContent = t("正在保存…");
   try {
     const result = await api('config', { method: 'PUT', data: { scope: config.scope, content, modified: config.modified } });
     config.content = content; config.modified = result.modified;
@@ -778,7 +748,7 @@ async function saveConfig() {
   } catch (error) { state.configSaveError = true; state.configErrorMessage = error.message; toast(error.message, 'error'); }
   finally {
     state.configSaving = false;
-    if (button.isConnected) { button.disabled = false; editor.readOnly = false; $('#scope').disabled = false; $('#reload-config').disabled = false; updateConfigStatus(); }
+    if (button.isConnected) { button.disabled = false; editor.readOnly = false; $('#reload-config').disabled = false; updateConfigStatus(); }
   }
 }
 function appendCommandLog(text) {
@@ -815,13 +785,13 @@ async function runCommand(action) {
 }
 async function navigate(view) {
   if (state.gitBusy) { toast(t("Git 操作正在进行，请稍候")); return; }
-  if (view === state.view && !state.contentRequest && !(view === 'config' && !state.config)) return;
+  if (view === state.view && !state.contentRequest && (view !== 'config' || (state.configScreen === 'list' && state.configFiles))) return;
   if (state.view === 'editor' && view !== 'editor') { if (!canLeaveEditor()) return; state.editorDirty = false; }
   if (state.view === 'config' && view !== 'config' && !canLeaveConfig()) return;
   state.contentRequest = null;
   if (state.view === 'config' && view !== 'config') { state.configDirty = false; state.configBuffer = state.config?.content; state.configSaveError = false; }
+  if (view === 'config') return loadConfigs();
   state.view = view;
-  if (view === 'config' && !state.config) return loadConfig();
   if (view === 'git') { render(); return loadGit(); }
   render();
 }
@@ -997,6 +967,7 @@ function showAuth(configured) {
 }
 async function loadWorkspace() {
   const status = await api('status');
+  if (state.root !== status.root) { state.configFiles = null; state.config = null; state.configScreen = 'list'; state.configListPrefs = null; }
   state.root = status.root;
   state.site = status.site;
   state.connection = status.connection;
@@ -1066,7 +1037,7 @@ $('#logout').onclick = async () => {
   state.drafts = [];
   state.pages = [];
   state.current = null;
-  state.config = null;
+  state.config = null; state.configFiles = null; state.configScreen = 'list';
   state.configDirty = false; state.configBuffer = null; state.commandLog = ''; state.lists = {};
   state.editorBuffer = null;
   $('#view').replaceChildren();
@@ -1084,7 +1055,7 @@ $('#account-settings').onclick = () => {
     const outcome = await modalAction($('#password-form button[type="submit"]'), () => api('auth/password', { method: 'POST', data }), t("正在保存…"));
     if (!outcome.ok) return;
     closeModal();
-    state.csrf = null; state.current = null; state.config = null; state.configDirty = false;
+    state.csrf = null; state.current = null; state.configFiles = null; state.configScreen = 'list'; state.config = null; state.configDirty = false;
     $('#view').replaceChildren(); showAuth(true);
     toast(t("密码已更新，请重新登录"));
   };
@@ -1167,8 +1138,6 @@ document.addEventListener('hexostudio:language', () => {
       if (field.start !== null) el.setSelectionRange?.(field.start, field.end);
       el.scrollTop = field.scroll;
     }
-    $('#config-search')?.oninput?.();
-    $('#config-editor')?.onselect?.();
     document.querySelectorAll('#setup-blog-screen details').forEach((el, i) => { el.open = details[i] || false; });
     if (preview) document.querySelector('[data-editor-tab="preview"]')?.click();
     if (library) toggleMediaLibrary();
