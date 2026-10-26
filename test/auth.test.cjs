@@ -43,11 +43,26 @@ test('管理员首次设置、登录、会话和密码修改', async () => {
   assert.equal((await auth.status(request(third.cookie.split(';')[0]))).authenticated, false);
 });
 
+test('eight-character passwords work for setup, login and password changes', async () => {
+  const { auth, request } = fixture();
+  const storage = { type: 'postgres', url: 'postgresql://u:p@db.example/studio' };
+  for (const password of ['Ab12!xy', 'x'.repeat(1025)]) {
+    await assert.rejects(auth.setup('admin', password, request(), false, storage), /8–1024/);
+  }
+  const first = await auth.setup('admin', 'Ab12!xyz', request(), false, storage);
+  const req = request(first.cookie.split(';')[0], first.csrf);
+  assert.ok((await auth.login('admin', 'Ab12!xyz', 'client')).cookie);
+  await assert.rejects(auth.changePassword(req, 'Ab12!xyz', 'Cd34!xy'), /8–1024/);
+  await auth.changePassword(req, 'Ab12!xyz', 'Cd34!xyz');
+  assert.equal((await auth.status(req)).authenticated, false);
+  assert.ok((await auth.login('admin', 'Cd34!xyz', 'client')).cookie);
+});
+
 test('首次设置限制在本机，并限制密码猜测', async () => {
   const { auth, request } = fixture();
   const remote = request(); remote.socket.remoteAddress = '192.0.2.1';
   await assert.rejects(auth.setup('admin', 'long-secure-password', remote), /本机/);
-  await assert.rejects(auth.setup('admin', 'short', request()), /12/);
+  await assert.rejects(auth.setup('admin', 'short', request()), /8/);
   await auth.setup('admin', 'long-secure-password', request(), false, { type: 'postgres', url: 'postgresql://user:password@db.example/hexostudio' });
   for (let i = 0; i < 5; i++) await assert.rejects(auth.login('admin', 'wrong', '127.0.0.1'), /用户名或密码错误/);
   await assert.rejects(auth.login('admin', 'long-secure-password', '127.0.0.1'), error => error.status === 429);

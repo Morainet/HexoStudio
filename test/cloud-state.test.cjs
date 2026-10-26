@@ -74,6 +74,20 @@ test('bootstrap race creates exactly one administrator and sessions work across 
   assert.equal(a.session(await stores[0].read(),req),null);
 });
 
+test('cloud passwords accept eight characters and reject out-of-range lengths',async()=>{
+  const [store]=sharedStores(),auth=new CloudAuth(store,config);
+  const input={username:'admin',password:'Ab12!xyz',setupKey:config.setupKey};
+  for(const password of ['Ab12!xy','x'.repeat(1025)]) {
+    await assert.rejects(auth.setup({...input,password}),/8–1024/);
+  }
+  const first=await auth.setup(input);
+  assert.ok((await auth.login(input)).cookie);
+  await assert.rejects(auth.password(request(first),{oldPassword:input.password,newPassword:'Cd34!xy'}),/8–1024/);
+  await auth.password(request(first),{oldPassword:input.password,newPassword:'Cd34!xyz'});
+  assert.equal(auth.session(await store.read(),request(first)),null);
+  assert.ok((await auth.login({...input,password:'Cd34!xyz'})).cookie);
+});
+
 test('password changes revoke every session; shared rate limits survive fresh instances',async()=>{
   const [store,other]=sharedStores(),a=new CloudAuth(store,config),b=new CloudAuth(other,config);
   const input={username:'admin',password:'secure-password-123',setupKey:config.setupKey};

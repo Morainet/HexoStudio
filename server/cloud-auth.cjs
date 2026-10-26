@@ -8,7 +8,7 @@ const equal=(a,b)=>crypto.timingSafeEqual(Buffer.from(digest(a)),Buffer.from(dig
 async function hash(password,salt){return (await scrypt(password,Buffer.from(salt,'hex'),64,OPTIONS)).toString('hex');}
 function credentials(username,password){
   if(typeof username!=='string'|| !/^[\p{L}\p{N}_-]{3,32}$/u.test(username)) throw failure('用户名需为 3–32 位字母、数字、下划线或连字符');
-  if(typeof password!=='string'||password.length<12||password.length>1024) throw failure('密码需为 12–1024 个字符');
+  if(typeof password!=='string'||password.length<8||password.length>1024) throw failure('密码需为 8–1024 个字符');
 }
 class CloudAuth {
   constructor(store,config){this.store=store;this.config=config;}

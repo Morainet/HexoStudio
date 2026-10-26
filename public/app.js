@@ -794,8 +794,8 @@ function showAuth(configured) {
   $('#auth-setup-key').required = Boolean(state.cloud && !configured);
   $('#auth-username').pattern = configured ? '.*' : '[\\p{L}\\p{N}_\\-]{3,32}';
   $('#auth-username').title = t("3–32 位字母、数字、下划线或连字符");
-  $('#auth-password').minLength = configured ? 1 : 12;
-  $('#auth-password').placeholder = configured ? '' : t("至少 12 个字符");
+  $('#auth-password').minLength = configured ? 1 : 8;
+  $('#auth-password').placeholder = configured ? '' : t("至少 8 个字符");
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
   $('#auth-form').dataset.mode = configured ? 'login' : 'setup';
   authStep(configured || state.cloud ? 'account' : 'storage');
@@ -878,7 +878,7 @@ $('#logout').onclick = async () => {
   showAuth(true);
 };
 $('#account-settings').onclick = () => {
-  modal(`<h2 id="modal-title">${t("修改管理员密码")}</h2><p>${t("修改后所有设备都需要重新登录。")}</p><form id="password-form" class="password-form"><label>${t("当前密码")}<input id="old-password" type="password" autocomplete="current-password" required></label><label>${t("新密码")}<input id="new-password" type="password" autocomplete="new-password" minlength="12" required></label><label>${t("确认新密码")}<input id="confirm-password" type="password" autocomplete="new-password" required></label><div class="actions"><button type="button" class="secondary" id="cancel-password">${t("取消")}</button><button type="submit" class="primary">${t("保存并退出")}</button></div></form>`);
+  modal(`<h2 id="modal-title">${t("修改管理员密码")}</h2><p>${t("修改后所有设备都需要重新登录。")}</p><form id="password-form" class="password-form"><label>${t("当前密码")}<input id="old-password" type="password" autocomplete="current-password" required></label><label>${t("新密码")}<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label><label>${t("确认新密码")}<input id="confirm-password" type="password" autocomplete="new-password" required></label><div class="actions"><button type="button" class="secondary" id="cancel-password">${t("取消")}</button><button type="submit" class="primary">${t("保存并退出")}</button></div></form>`);
   $('#cancel-password').onclick = closeModal;
   $('#password-form').onsubmit = async event => {
     event.preventDefault();
@@ -959,7 +959,7 @@ document.addEventListener('hexostudio:language', () => {
     authStep($('#auth-form').dataset.step);
     if (state.authReady) { $('#auth-submit').textContent = t('继续进入工作台'); $('#auth-back').disabled = true; $('#auth-account-fields').disabled = true; }
     $('#auth-username').title = t('3–32 位字母、数字、下划线或连字符');
-    if ($('#auth-form').dataset.mode === 'setup') $('#auth-password').placeholder = t('至少 12 个字符');
+    if ($('#auth-form').dataset.mode === 'setup') $('#auth-password').placeholder = t('至少 8 个字符');
     if (errorVisible) { $('#auth-error').textContent = t(error); $('#auth-error').classList.remove('hidden'); }
   } else {
     render();

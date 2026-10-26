@@ -12,7 +12,7 @@ const SCRYPT_OPTIONS = { N: 1 << 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 };
 
 function validCredentials(username, password) {
   if (typeof username !== 'string' || !/^[\p{L}\p{N}_-]{3,32}$/u.test(username)) throw new Error('用户名需为 3–32 位字母、数字、下划线或连字符');
-  if (typeof password !== 'string' || password.length < 12 || password.length > 1024) throw new Error('密码需为 12–1024 个字符');
+  if (typeof password !== 'string' || password.length < 8 || password.length > 1024) throw new Error('密码需为 8–1024 个字符');
 }
 async function hashPassword(password, salt) {
   const hash = await scrypt(password, Buffer.from(salt, 'hex'), 64, SCRYPT_OPTIONS);
