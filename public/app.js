@@ -745,6 +745,53 @@ async function navigate(view) {
 }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
+const releaseHome = 'https://github.com/Morainet/HexoStudio/releases';
+async function checkForUpdates() {
+  if (state.updateRequest) return state.updateRequest;
+  state.updateRequest = (async () => {
+    try { state.updateInfo = await api('updates'); }
+    catch { state.updateInfo = { currentVersion: state.updateInfo?.currentVersion, status: 'unavailable' }; }
+    $('#update-badge').classList.toggle('hidden', state.updateInfo.status !== 'available');
+    return state.updateInfo;
+  })().finally(() => { state.updateRequest = null; });
+  return state.updateRequest;
+}
+function paintUpdateStatus() {
+  const info = state.updateInfo || {};
+  const labels = { available: '发现新版本', current: '当前没有更新的正式版', 'no-release': '尚未发布正式版本', unavailable: '暂时无法检查更新，请稍后重试' };
+  $('#update-status').textContent = t(labels[info.status] || '正在检查更新…');
+  $('#update-status').dataset.tone = info.status || 'checking';
+  $('#update-current').textContent = info.currentVersion ? `v${info.currentVersion}` : '—';
+  $('#update-latest').textContent = info.latestVersion ? `v${info.latestVersion}` : '—';
+  const checked = info.checkedAt && new Date(info.checkedAt);
+  $('#update-checked').textContent = checked && Number.isFinite(checked.getTime()) ? checked.toLocaleString(HexoI18n.language === 'en' ? 'en-US' : 'zh-CN') : '—';
+  $('#update-release').href = releaseHome;
+  // The server preserves tags with or without a v prefix; restrict links to this repository.
+  if (info.releaseUrl?.startsWith(`${releaseHome}/tag/`)) $('#update-release').href = info.releaseUrl;
+}
+$('#version-updates').onclick = async () => {
+  const guidance = state.mode === 'desktop'
+    ? '下载对应系统的安装包，退出应用后安装新版。'
+    : state.cloud
+      ? '将部署项目更新至新版源码，再在 Vercel、Netlify 或服务器重新部署。'
+      : '源码运行请更新代码并重启；npm 安装请按发布说明升级软件包。';
+  if (!modal(`<div class="eyebrow">HEXOSTUDIO</div><h2>${t("版本与更新")}</h2><div id="update-status" class="update-status" role="status"></div><dl class="update-details"><div><dt>${t("当前版本")}</dt><dd id="update-current"></dd></div><div><dt>${t("最新正式版")}</dt><dd id="update-latest"></dd></div><div><dt>${t("检查时间")}</dt><dd id="update-checked"></dd></div></dl><p>${t(guidance)}</p><div class="actions update-actions"><button id="update-check" class="secondary">${t("检查更新")}</button><a id="update-release" href="${releaseHome}" target="_blank" rel="noopener noreferrer">${t("查看发布记录")}${icon('arrow')}</a></div><p class="update-note">${t("仅检查 GitHub 正式发布；结果缓存 1 分钟。更新前请备份配置。")}</p>`)) return;
+  const dialog = state.dialogVersion;
+  const refresh = async () => {
+    const button = $('#update-check');
+    const restoreFocus = document.activeElement === button;
+    button.disabled = true; button.textContent = t("正在检查更新…");
+    await checkForUpdates();
+    if (dialog !== state.dialogVersion) return;
+    paintUpdateStatus();
+    button.disabled = false; button.textContent = t("检查更新");
+    if (restoreFocus) button.focus();
+  };
+  $('#update-check').onclick = refresh;
+  paintUpdateStatus();
+  await refresh();
+};
+
 function storageFields(type, prefix) {
   const fields = $(`#${prefix}-storage-fields`);
   fields.replaceChildren();
@@ -836,6 +883,7 @@ async function loadWorkspace() {
   state.view = 'dashboard';
   $('#auth-screen').classList.add('hidden');
   render();
+  void checkForUpdates();
 }
 $('#auth-form').onsubmit = async event => {
   event.preventDefault();

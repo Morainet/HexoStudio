@@ -13,7 +13,9 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
     const paths=new RemoteRepository(connection);paths.connection.branch||='main';
     return {connection:paths.connection,path:name=>paths.path(name),async snapshot(){return {};},async read(){return {buffer:Buffer.from('title: Cloud\ntheme: test')};}};
   };
-  const a=createCloudHandler({config,store,repository}),b=createCloudHandler({config,store,repository});let counter=0;
+  let updateChecks=0;
+  const checkUpdates=async()=>{updateChecks++;return {currentVersion:'0.8.0',status:'no-release'};};
+  const a=createCloudHandler({config,store,repository,checkUpdates}),b=createCloudHandler({config,store,repository,checkUpdates});let counter=0;
   const server=http.createServer((req,res)=>(counter++%2?a:b)(req,res,()=>{res.writeHead(200);res.end('static');}));
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   t.after(()=>new Promise(resolve=>server.close(resolve)));
@@ -23,13 +25,17 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   assert.equal((await call('/')).status,200);
   assert.equal((await call('/api/health')).status,200);
   assert.equal((await call('/api/status')).status,401);
+  assert.equal((await call('/api/updates')).status,401);
   assert.deepEqual(await (await call('/api/auth/status')).json(),{cloud:true,configured:false,authenticated:false,username:null,csrf:null});
+  assert.equal(updateChecks,0);
   const input={username:'admin',password:'long-secure-password',setupKey:config.setupKey};
   assert.equal((await call('/api/auth/setup','POST',input,{Origin:'https://evil.example'})).status,403);
   assert.equal((await call('/api/auth/setup','POST',{...input,setupKey:'wrong'})).status,403);
   const setup=await call('/api/auth/setup','POST',input);assert.equal(setup.status,200);
   cookie=setup.headers.get('set-cookie').split(';')[0];csrf=(await setup.json()).csrf;
   assert.equal((await (await call('/api/auth/status')).json()).authenticated,true);
+  assert.deepEqual(await (await call('/api/updates')).json(),{currentVersion:'0.8.0',status:'no-release'});
+  assert.equal(updateChecks,1);
   assert.equal((await call('/api/auth/setup','POST',input)).status,409);
   assert.equal((await call('/api/remote/connect','POST',{}, {'X-CSRF-Token':''})).status,403);
   const connect=await call('/api/remote/connect','POST',{provider:'github',repository:'owner/blog',token:'very-private-token'});assert.equal(connect.status,200);

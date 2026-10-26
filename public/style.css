@@ -499,3 +499,20 @@ select:disabled { cursor: not-allowed; opacity: .55; }
     background-image: none;
   }
 }
+
+/* A quiet persistent entry; details stay in the update dialog. */
+.update-badge { margin-inline-start: auto; padding: 2px 6px; border-radius: 5px; background: var(--brand-soft); color: var(--accent); font-size: 10px; white-space: nowrap; }
+.update-status { margin: 20px 0; padding: 13px 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); font-size: 13px; line-height: 1.6; }
+.update-status[data-tone="available"] { color: var(--accent); background: var(--brand-soft); }
+.update-status[data-tone="unavailable"] { color: var(--danger); }
+.update-details { margin: 0 0 22px; font-size: 12px; }
+.update-details > div { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.update-details dt { color: var(--muted); flex-shrink: 0; }
+.update-details dd { margin: 0; text-align: end; overflow-wrap: anywhere; }
+.update-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+.update-actions a { display: inline-flex; align-items: center; gap: 6px; color: var(--accent); font-size: 12px; text-underline-offset: 4px; }
+.update-actions a .icon { width: 14px; height: 14px; }
+.modal .update-note { margin: 18px 0 0; font-size: 11px; }
+
+#version-updates { gap: 8px; }
+#version-updates > .icon { flex-shrink: 0; }

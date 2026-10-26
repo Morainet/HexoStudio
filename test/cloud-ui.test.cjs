@@ -9,7 +9,7 @@ test('cloud onboarding skips database form and sends setup key, then hides stora
   function element(){const classes=new Set();return {value:'',dataset:{},disabled:false,textContent:'',classList:{add:x=>classes.add(x),remove:x=>classes.delete(x),contains:x=>classes.has(x),toggle(x,v){if(v)classes.add(x);else classes.delete(x);}},append(){},replaceChildren(){},focus(){},setAttribute(){},reset(){}};}
   const $=selector=>{if(!nodes.has(selector))nodes.set(selector,element());return nodes.get(selector);};
   $('#auth-storage-type').value='postgres';
-  const context=vm.createContext({$,state,t:require('../public/i18n.js').t,DisplayPreferences:{place(){}},document:{createElement:element},render(){},toast(){},refreshPosts:async()=>{},
+  const context=vm.createContext({$,state,t:require('../public/i18n.js').t,DisplayPreferences:{place(){}},document:{createElement:element},render(){},checkForUpdates:async()=>{},toast(){},refreshPosts:async()=>{},
     api:async(name,options)=>{calls.push({name,data:options?.data});return name==='status'?{mode:'cloud',root:null}:{csrf:'shared-session'};}
   });
   const source=fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');

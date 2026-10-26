@@ -137,6 +137,7 @@ async function handle(req, res) {
       const storage = await auth.moveStorage(req, data.password, data.storage);
       return send(res, 200, { storage }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
     }
+    if (req.method === 'GET' && url.pathname === '/api/updates') return send(res, 200, await require('./updates.cjs').checkUpdates());
     if (req.method === 'GET' && url.pathname === '/api/status') {
       let root = null;
       try { root = getRoot(); } catch { /* project may have moved */ }

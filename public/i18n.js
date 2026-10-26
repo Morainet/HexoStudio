@@ -1,6 +1,23 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "版本与更新": "Version & updates",
+  "有新版": "New",
+  "发现新版本": "A new version is available",
+  "当前没有更新的正式版": "No newer stable release available",
+  "尚未发布正式版本": "No stable release published yet",
+  "暂时无法检查更新，请稍后重试": "Unable to check for updates. Please try again later.",
+  "正在检查更新…": "Checking for updates\u2026",
+  "当前版本": "Current version",
+  "最新正式版": "Latest stable release",
+  "检查时间": "Last checked",
+  "检查更新": "Check for updates",
+  "查看发布记录": "View releases",
+  "下载对应系统的安装包，退出应用后安装新版。": "Download the installer for your system, quit the app, then install the update.",
+  "将部署项目更新至新版源码，再在 Vercel、Netlify 或服务器重新部署。": "Update your deployment source, then redeploy on Vercel, Netlify or your server.",
+  "源码运行请更新代码并重启；npm 安装请按发布说明升级软件包。": "For source installations, update the code and restart. For npm installations, follow the release instructions to upgrade.",
+  "仅检查 GitHub 正式发布；结果缓存 1 分钟。更新前请备份配置。": "Checks stable GitHub releases only; results are cached for 1 minute. Back up your configuration before updating.",
+
   "数据库已就绪，输入部署时设置的初始化密钥并创建管理员。": "Database ready. Enter your deployment setup key and create an administrator.",
   "移入 source/_posts 并提交到远端分支。博客是否更新取决于仓库的自动部署配置。": "to source/_posts and commit to the remote branch. Site updates depend on your repository deployment workflow.",
   "首次设置": "First-time setup",

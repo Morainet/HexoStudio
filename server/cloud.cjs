@@ -3,7 +3,7 @@ const {CloudAuth,failure}=require('./cloud-auth.cjs');
 const {RemoteRepository}=require('./remote-repository.cjs');
 const {CloudContent}=require('./cloud-content.cjs');
 const {renderPreview}=require('./preview.cjs');
-function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection)}={}){
+function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkUpdates}={}){
   const auth=new CloudAuth(store,config);
   const send=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));};
   async function body(req){
@@ -27,6 +27,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         const input=await body(req),result=await auth.login(input);return send(res,200,{authenticated:true,username:input.username,csrf:result.csrf},{'Set-Cookie':result.cookie});
       }
       auth.require(data,req,req.method!=='GET');
+      if(route==='/api/updates'&&req.method==='GET')return send(res,200,await checkUpdates());
       if(route==='/api/auth/logout'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.logout(req)});
       if(route==='/api/auth/password'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.password(req,await body(req))});
       if(route.startsWith('/api/auth/storage'))throw failure('云端数据库由部署环境变量管理',409);
