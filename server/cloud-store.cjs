@@ -5,7 +5,10 @@ function cloudConfig(env = process.env) {
   if (!/^[a-f0-9]{64}$/i.test(env.HEXOSTUDIO_SECRET || '')) throw new Error('HEXOSTUDIO_SECRET 必须是 64 位十六进制随机密钥');
   if ((env.HEXOSTUDIO_SETUP_KEY || '').length < 32) throw new Error('HEXOSTUDIO_SETUP_KEY 至少需要 32 个字符');
   if (env.HEXOSTUDIO_SECRET === env.HEXOSTUDIO_SETUP_KEY) throw new Error('请为加密和初始化使用不同的随机密钥');
-  const url = env.HEXOSTUDIO_DATABASE_URL || '';
+  // Keep explicit configuration authoritative when a marketplace integration
+  // also injects its own connection string.
+  const url = env.HEXOSTUDIO_DATABASE_URL || env.MONGODB_URI || '';
+  if (!env.HEXOSTUDIO_DATABASE_URL && env.MONGODB_URI && !/^mongodb(?:\+srv)?:/.test(url)) throw new Error('MONGODB_URI 必须是 MongoDB 连接地址');
   const type = /^postgres(?:ql)?:/.test(url) ? 'postgres' : /^mysql:/.test(url) ? 'mysql' : /^mongodb(?:\+srv)?:/.test(url) ? 'mongodb' : '';
   const storage = normalizeStorage({type, url, database:env.HEXOSTUDIO_DATABASE_NAME});
   let origin;

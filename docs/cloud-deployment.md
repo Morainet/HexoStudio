@@ -26,7 +26,8 @@
 | 变量 | 必填 | 内容 |
 | --- | --- | --- |
 | `HEXOSTUDIO_MODE` | 是 | `cloud`；仓库提供的函数入口和 Docker 镜像已设置 |
-| `HEXOSTUDIO_DATABASE_URL` | 是 | 数据库连接 URI，需包含数据库名称 |
+| `HEXOSTUDIO_DATABASE_URL` | 是，或使用下方 MongoDB 集成变量 | 数据库连接 URI，需包含数据库名称；优先于 `MONGODB_URI` |
+| `MONGODB_URI` | MongoDB 集成可用 | Vercel MongoDB Atlas 原生集成自动注入；未设置 `HEXOSTUDIO_DATABASE_URL` 时读取 |
 | `HEXOSTUDIO_ORIGIN` | 是 | 后台固定访问地址，例如 `https://studio.example.com`，不带路径 |
 | `HEXOSTUDIO_SECRET` | 是 | 64 位十六进制随机密钥，用于加密数据库内容 |
 | `HEXOSTUDIO_SETUP_KEY` | 是 | 至少 32 字符的独立随机密钥，用于首次创建管理员 |
@@ -64,6 +65,8 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 4. 部署完成后打开固定域名。不要直接访问 `/api/entry`，也不要用不同的预览域名执行写操作。
 
 函数入口自动启用云端模式，静态资源与 API 都经同一个处理器返回。无需设置本机目录或 `HEXOSTUDIO_TOKEN`。
+
+**MongoDB Atlas 原生集成：** 在 Vercel Marketplace 创建 Atlas 集群并连接到项目的 Production 环境，应用会直接读取自动注入的 `MONGODB_URI`。设置 `HEXOSTUDIO_DATABASE_NAME=hexostudio`，以及上文的固定域名、加密密钥和初始化密钥；无需另存一份数据库密码。若之前配置过其他数据库，应先备份其数据，再移除旧的 `HEXOSTUDIO_DATABASE_URL`，否则它仍会优先使用。切换连接不会自动迁移已有管理员和后台配置。
 
 ### Netlify
 

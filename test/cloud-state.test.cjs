@@ -28,6 +28,17 @@ test('cloud configuration requires remote database, HTTPS origin and independent
   assert.equal(cloudConfig({...env,HEXOSTUDIO_ORIGIN:'http://127.0.0.1:4545'}).origin,'http://127.0.0.1:4545');
 });
 
+test('Atlas integration URI is supported without overriding an explicit database', () => {
+  const env={HEXOSTUDIO_SECRET:config.secret,HEXOSTUDIO_SETUP_KEY:config.setupKey,HEXOSTUDIO_ORIGIN:config.origin,MONGODB_URI:'mongodb+srv://user:password@cluster.example/?retryWrites=true&w=majority',HEXOSTUDIO_DATABASE_NAME:'hexostudio'};
+  assert.deepEqual(cloudConfig(env).storage,{type:'mongodb',url:env.MONGODB_URI,database:'hexostudio'});
+  assert.equal(cloudConfig({...env,HEXOSTUDIO_DATABASE_NAME:'',MONGODB_URI:'mongodb+srv://cluster.example/studio'}).storage.database,'studio');
+  assert.throws(()=>cloudConfig({...env,HEXOSTUDIO_DATABASE_NAME:''}),/MongoDB/);
+  assert.throws(()=>cloudConfig({...env,MONGODB_URI:'postgresql://db.example/studio'}),/MONGODB_URI/);
+  const explicit='postgresql://db.example/studio';
+  assert.deepEqual(cloudConfig({...env,HEXOSTUDIO_DATABASE_URL:explicit}).storage,{type:'postgres',url:explicit});
+  assert.throws(()=>cloudConfig({...env,HEXOSTUDIO_DATABASE_URL:'invalid'}));
+});
+
 test('database payload is authenticated encryption; wrong keys and tampering fail closed', () => {
   const cipher=codec(config.secret), state={token:'github-secret',sessions:{session:{csrf:'sensitive'}}};
   const first=cipher.seal(state),second=cipher.seal(state);
