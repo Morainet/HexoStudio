@@ -296,6 +296,10 @@ input:read-only, textarea:read-only { background: var(--raised); }
 .auth-card { width: min(100%, 460px); max-height: calc(100dvh - 56px); overflow: auto; padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 16px #10182806; }
 .auth-heading { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
 .auth-heading .eyebrow { font-size: 10px; font-weight: 500; letter-spacing: .08em; }
+.brand-mark, .auth-brand { position: relative; background: transparent; }
+.brand-mark img, .auth-brand img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.brand-mark img, .auth-brand img { mix-blend-mode: multiply; }
+[data-theme="dark"] .brand-mark img, [data-theme="dark"] .auth-brand img { filter: invert(1); mix-blend-mode: screen; }
 .auth-brand { width: 40px; height: 40px; border-radius: 9px; font-size: 24px; }
 .auth-card h1 { font-size: 22px; font-weight: 600; letter-spacing: -.5px; line-height: 1.4; margin: 4px 0 0; }
 .auth-card p { color: var(--muted); font-size: 12px; line-height: 1.8; margin: 0 0 22px; }

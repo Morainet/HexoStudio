@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Morainet/HexoStudio/main/docs/brand/hexostudio-logo.png" width="112" alt="HexoStudio Logo">
+  <img src="https://raw.githubusercontent.com/Morainet/HexoStudio/main/docs/brand/hexostudio-logo-studio.png" width="112" alt="HexoStudio Logo">
 </p>
 
 # HexoStudio

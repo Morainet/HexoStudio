@@ -26,6 +26,7 @@
     "web": "node bin/hs.cjs start",
     "start": "node bin/hs.cjs start",
     "desktop": "electron desktop/main.cjs",
+    "icons": "node scripts/generate-icons.cjs",
     "check": "node scripts/check.cjs",
     "test": "node --test",
     "test:package": "node scripts/verify-package.cjs",
@@ -57,6 +58,7 @@
       "package.json"
     ],
     "mac": {
+      "icon": "desktop/icons/icon.icns",
       "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
       "target": [
         "dmg",
@@ -64,12 +66,15 @@
       ]
     },
     "win": {
+      "icon": "desktop/icons/icon.ico",
       "target": [
         "nsis",
         "portable"
       ]
     },
     "nsis": {
+      "installerIcon": "desktop/icons/icon.ico",
+      "uninstallerIcon": "desktop/icons/icon.ico",
       "artifactName": "${productName}-${version}-windows-${arch}-setup.${ext}"
     },
     "portable": {

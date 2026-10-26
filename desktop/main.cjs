@@ -13,9 +13,12 @@ async function createWindow() {
   const { startServer } = require('../server/index.cjs');
   const running = await startServer(0, '127.0.0.1');
   server = running.server;
+  const applicationIcon = path.join(__dirname, 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  if (process.platform === 'darwin') app.dock.setIcon(applicationIcon);
   window = new BrowserWindow({
     width: 1320, height: 850, minWidth: 900, minHeight: 620,
     title: 'HexoStudio', backgroundColor: '#f7f8fb',
+    icon: applicationIcon,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') }
   });
   window.webContents.setWindowOpenHandler(({ url }) => {

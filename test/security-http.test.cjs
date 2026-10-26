@@ -33,6 +33,19 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
     server.close(error => error ? reject(error) : resolve());
     server.closeAllConnections();
   }));
+  for (const [name, type] of [['favicon.svg', 'image/svg+xml'], ['favicon.ico', 'image/x-icon'], ['favicon-32.png', 'image/png'], ['icon-192.png', 'image/png'], ['apple-touch-icon.png', 'image/png']]) {
+    const icon = await fetch(`${url}/${name}?v=1`);
+    assert.equal(icon.status, 200);
+    assert.equal(icon.headers.get('content-type'), type);
+    assert.equal(icon.headers.get('x-content-type-options'), 'nosniff');
+    assert.deepEqual(Buffer.from(await icon.arrayBuffer()), fs.readFileSync(path.join(__dirname, '../public', name)));
+    const head = await fetch(`${url}/${name}`, { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal((await head.arrayBuffer()).byteLength, 0);
+  }
+  for (const name of ['package.json', 'desktop/icons/icon.png', 'constructor']) {
+    assert.equal((await fetch(`${url}/${name}`)).status, 404);
+  }
   const write = headers => fetch(`${url}/api/config`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ scope: 'theme:demo', content: 'overwritten: true\n' })
