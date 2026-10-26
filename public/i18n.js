@@ -1,6 +1,26 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "配置文件已被其他程序修改，请重新加载": "This configuration was changed elsewhere. Reload the file before saving.",
+  "站点": "Site",
+  "主题覆盖配置": "Theme overrides",
+  "主题目录配置": "Theme files",
+  "选择配置文件，快速定位并修改设置。": "Choose a configuration file, find a setting and make your changes.",
+  "配置文件": "Configuration file",
+  "保存后直接提交到远端分支": "Saving commits directly to the remote branch",
+  "保存后需重新构建博客才能生效": "Rebuild your blog after saving to apply changes",
+  "快速定位": "Quick navigation",
+  "配置索引": "Configuration outline",
+  "在当前文件中查找": "Find in this file",
+  "查找配置项或内容…": "Find a setting or text…",
+  "上一个匹配": "Previous match",
+  "下一个匹配": "Next match",
+  "没有匹配结果": "No matches",
+  "使用搜索定位配置内容": "Use search to locate settings",
+  "原样编辑配置文件，保留注释与字段。请在保存前核对语法。": "Edit the original file while preserving comments and fields. Check the syntax before saving.",
+  "第 {0} 行，第 {1} 列": "Line {0}, column {1}",
+  "{0} 处匹配": "{0} matches",
+
   "移除图片": "Remove image",
   "已上传图片": "Image uploaded",
   "品牌设置": "Brand settings",

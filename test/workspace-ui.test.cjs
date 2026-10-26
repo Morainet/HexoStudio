@@ -56,6 +56,8 @@ test('configuration save prevents departure and preserves edited text on failure
   assert.equal(state.configDirty, true); // Confirmation alone must not discard the buffer.
   assert.equal($('#config-status').textContent, '保存失败，修改仍保留');
   assert.equal($('#reload-config').disabled, false);
+  assert.equal($('#config-error').textContent, '文件冲突');
+  assert.equal($('#config-error').hidden, false);
 });
 test('successful configuration save updates the conflict version and clears dirty state', async () => {
   const $ = ui(); const state = {config:{scope:'site',content:'old',modified:'before'},configDirty:true};
@@ -196,4 +198,30 @@ test('account changes do not submit when unsaved configuration departure is canc
   await ctx.$('#storage-form').onsubmit({preventDefault(){}});
   assert.deepEqual(requests, ['auth/storage']);
   assert.equal(ctx.$('#move-submit').disabled, false);
+});
+
+
+test('unchanged configuration does not create redundant remote commits', async () => {
+  const $ = ui(), state = {config:{scope:'site',content:'# original\ntitle: Blog',modified:'before'}};
+  $('#config-editor').value = state.config.content;
+  let writes = 0;
+  const ctx = load('function updateConfigStatus()', 'function appendCommandLog(', {$,state,api:async()=>{writes++;},toast(){}});
+  await ctx.saveConfig(); ctx.updateConfigStatus();
+  assert.equal(writes, 0);
+  assert.equal($('#save-config').disabled, true);
+});
+
+test('configuration search treats special characters literally and keeps original text offsets', () => {
+  const ctx = load('function configIndex(', 'function configPage()', {});
+  const content = '# title: ignored\r\ntitle: [Blog.*]\r\nmenu:\r\n  home: /\r\nurl: https://blog.test';
+  const matches = ctx.configMatches(content, '[blog.*]');
+  assert.equal(matches.length, 1);
+  assert.equal(content.slice(matches[0].start, matches[0].end), '[Blog.*]');
+  assert.equal(ctx.configMatches(content, '').length, 0);
+  assert.equal(ctx.configMatches(content, 'missing').length, 0);
+  const entries = ctx.configIndex(content, 'YAML');
+  assert.deepEqual(Array.from(entries, x=>x.name), ['title','menu','url']);
+  assert.equal(entries[0].line, 2);
+  assert.equal(content.slice(entries[2].offset, entries[2].offset + 4), 'url:');
+  assert.deepEqual(Array.from(ctx.configIndex('{\n  "title": "Blog",\n  "menu": {}\n}', 'JSON'), x=>x.name), ['title','menu']);
 });
