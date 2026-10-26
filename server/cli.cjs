@@ -20,7 +20,9 @@ Options:
 
 Options override HEXOSTUDIO_PORT, HEXOSTUDIO_HOST, HEXO_ROOT and
 HEXOSTUDIO_SETTINGS. Relative paths resolve from your current directory.
-Non-loopback listening requires HEXOSTUDIO_TOKEN in the environment.
+Local mode: non-loopback listening requires HEXOSTUDIO_TOKEN.
+Cloud mode: set HEXOSTUDIO_MODE=cloud and deployment environment variables;
+PORT is accepted after HEXOSTUDIO_PORT. See docs/cloud-deployment.md.
 Use Ctrl+C to stop. Database and administrator setup happen in the browser.
 doctor checks local files and tools without changing them or connecting to a database.
 `;
@@ -47,7 +49,7 @@ function parseOptions(args, env = process.env, cwd = process.cwd()) {
   };
   const paths = { root: resolveOption('root', 'HEXO_ROOT'), settings: resolveOption('settings', 'HEXOSTUDIO_SETTINGS') };
   if (positionals[0] === 'doctor') return { doctor: true, json: Boolean(values.json), ...paths };
-  const rawPort = values.port ?? env.HEXOSTUDIO_PORT ?? '4545';
+  const rawPort = values.port ?? env.HEXOSTUDIO_PORT ?? env.PORT ?? '4545';
   if (!/^\d+$/.test(rawPort) || !Number.isSafeInteger(Number(rawPort)) || Number(rawPort) > 65535) {
     throw new Error('Port must be an integer between 0 and 65535.');
   }
@@ -64,8 +66,13 @@ async function main(args = process.argv.slice(2)) {
   if (options.version) { console.log(version); return; }
   options.settings ||= path.join(os.homedir(), '.hexostudio.json');
   const { readSettings, diagnose } = require('./diagnostics.cjs');
+  const cloud = process.env.HEXOSTUDIO_MODE === 'cloud';
   if (options.doctor) {
-    const report = diagnose(options);
+    let report;
+    if (cloud) {
+      try { require('./cloud-store.cjs').cloudConfig(); report = { ok:true, checks:[{id:'cloud',status:'ok',message:'Cloud environment configuration is valid.'}] }; }
+      catch { report = { ok:false, checks:[{id:'cloud',status:'error',message:'Check HEXOSTUDIO_DATABASE_URL, HEXOSTUDIO_SECRET, HEXOSTUDIO_SETUP_KEY and HEXOSTUDIO_ORIGIN.'}] }; }
+    } else report = diagnose(options);
     if (options.json) console.log(JSON.stringify(report, null, 2));
     else {
       console.log(`HexoStudio ${version} — diagnostics`);
@@ -75,7 +82,10 @@ async function main(args = process.argv.slice(2)) {
     process.exitCode = report.ok ? 0 : 1;
     return;
   }
-  readSettings(options.settings);
+  if (cloud) {
+    require('./cloud-store.cjs').cloudConfig();
+    if (options.root) throw new Error('Cloud mode uses remote repositories; --root is not supported.');
+  } else readSettings(options.settings);
   process.env.HEXOSTUDIO_HOST = options.host;
   process.env.HEXOSTUDIO_PORT = String(options.port);
   if (options.root) process.env.HEXO_ROOT = require('./core.cjs').validateProject(options.root);
@@ -91,7 +101,7 @@ async function main(args = process.argv.slice(2)) {
   const browserUrl = options.host === '0.0.0.0' ? url.replace('0.0.0.0', '127.0.0.1') : options.host === '::' ? url.replace('[::]', '[::1]') : url;
   console.log(`HexoStudio: ${browserUrl}`);
   console.log(`Version: ${version} | Listening: ${options.host}:${server.address().port}`);
-  console.log(`Settings: ${options.settings}`);
+  console.log(cloud ? 'Cloud mode: settings and sessions are stored in the database.' : `Settings: ${options.settings}`);
   if (options.root) console.log(`Blog: ${options.root}`);
   else console.log('Select or change your blog in the browser.');
   console.log('Press Ctrl+C to stop.');

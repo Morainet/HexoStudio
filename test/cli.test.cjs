@@ -24,6 +24,8 @@ test('CLI options override environment and resolve paths from the caller directo
   assert.equal(parseOptions([], {}).host, '127.0.0.1');
   assert.equal(parseOptions([], {}).port, 4545);
   assert.equal(parseOptions([], { HEXOSTUDIO_PORT: '0' }).port, 0);
+  assert.equal(parseOptions([], { PORT: '8080' }).port, 8080);
+  assert.equal(parseOptions([], { PORT: '8080', HEXOSTUDIO_PORT: '4546' }).port, 4546);
 });
 
 test('CLI rejects unknown commands, flags and invalid values before startup', () => {

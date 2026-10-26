@@ -1,0 +1,21 @@
+services:
+  hexostudio:
+    build: .
+    restart: unless-stopped
+    env_file: .env.cloud
+    ports:
+      - "127.0.0.1:4545:4545"
+    environment:
+      HEXOSTUDIO_MODE: cloud
+      HEXOSTUDIO_HOST: 0.0.0.0
+      PORT: "4545"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4545/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

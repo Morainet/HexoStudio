@@ -1,0 +1,65 @@
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const http=require('node:http');
+const {createCloudHandler}=require('../server/cloud.cjs');
+const {codec,versionedStore}=require('../server/cloud-store.cjs');
+const {RemoteRepository}=require('../server/remote-repository.cjs');
+
+test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local commands across instances',async t=>{
+  const config={origin:'https://studio.example',secret:'ab'.repeat(32),setupKey:'bootstrap-'.repeat(5)};
+  const cipher=codec(config.secret);let record={revision:0,payload:cipher.seal({})};
+  const store=versionedStore(fn=>fn({async read(){return {...record};},async cas(version,payload){if(version!==record.revision)return false;record={revision:version+1,payload};return true;}}),cipher);
+  const repository=connection=>{
+    const paths=new RemoteRepository(connection);paths.connection.branch||='main';
+    return {connection:paths.connection,path:name=>paths.path(name),async snapshot(){return {};},async read(){return {buffer:Buffer.from('title: Cloud\ntheme: test')};}};
+  };
+  const a=createCloudHandler({config,store,repository}),b=createCloudHandler({config,store,repository});let counter=0;
+  const server=http.createServer((req,res)=>(counter++%2?a:b)(req,res,()=>{res.writeHead(200);res.end('static');}));
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  let cookie='',csrf='';
+  const call=(route,method='GET',data,headers={})=>fetch(base+route,{method,headers:{Origin:config.origin,Cookie:cookie,'X-CSRF-Token':csrf,'Content-Type':'application/json',...headers},body:data===undefined?undefined:JSON.stringify(data)});
+  assert.equal((await call('/')).status,200);
+  assert.equal((await call('/api/health')).status,200);
+  assert.equal((await call('/api/status')).status,401);
+  assert.deepEqual(await (await call('/api/auth/status')).json(),{cloud:true,configured:false,authenticated:false,username:null,csrf:null});
+  const input={username:'admin',password:'long-secure-password',setupKey:config.setupKey};
+  assert.equal((await call('/api/auth/setup','POST',input,{Origin:'https://evil.example'})).status,403);
+  assert.equal((await call('/api/auth/setup','POST',{...input,setupKey:'wrong'})).status,403);
+  const setup=await call('/api/auth/setup','POST',input);assert.equal(setup.status,200);
+  cookie=setup.headers.get('set-cookie').split(';')[0];csrf=(await setup.json()).csrf;
+  assert.equal((await (await call('/api/auth/status')).json()).authenticated,true);
+  assert.equal((await call('/api/auth/setup','POST',input)).status,409);
+  assert.equal((await call('/api/remote/connect','POST',{}, {'X-CSRF-Token':''})).status,403);
+  const connect=await call('/api/remote/connect','POST',{provider:'github',repository:'owner/blog',token:'very-private-token'});assert.equal(connect.status,200);
+  const status=await (await call('/api/status')).json();assert.equal(status.mode,'cloud');assert.equal(status.site.title,'Cloud');
+  assert.equal(JSON.stringify(status).includes('very-private-token'),false);
+  assert.equal(status.connection.branch,'main');
+  assert.equal((await call('/api/project','POST',{root:'/tmp'})).status,400);
+  assert.equal((await call('/api/command','POST',{command:'generate'})).status,409);
+  assert.equal((await call('/api/auth/storage','GET')).status,409);
+  assert.equal((await call('/api/auth/logout','POST',{})).status,200);
+  assert.equal((await call('/api/status')).status,401);
+});
+
+test('Web Request adapter serves static HEAD, enforces body limits and fails closed without deployment secrets',async()=>{
+  const previous=process.env.HEXOSTUDIO_MODE;
+  const secret=process.env.HEXOSTUDIO_SECRET;
+  process.env.HEXOSTUDIO_MODE='cloud';delete process.env.HEXOSTUDIO_SECRET;
+  try {
+    const {fetchHandler}=require('../server/fetch-handler.cjs');
+    assert.equal((await fetchHandler(new Request('https://studio.example/api/auth/status'))).status,503);
+    process.env.HEXOSTUDIO_MODE='local';
+    const html=await fetchHandler(new Request('https://studio.example/'));
+    assert.equal(html.status,200);assert.match(await html.text(),/HexoStudio/);
+    assert.match(html.headers.get('content-security-policy'),/frame-ancestors 'none'/);
+    const head=await fetchHandler(new Request('https://studio.example/',{method:'HEAD'}));
+    assert.equal(head.status,200);assert.equal(await head.text(),'');
+    const oversized=await fetchHandler(new Request('https://studio.example/api/preview',{method:'POST',body:'x'.repeat(4_300_001)}));
+    assert.equal(oversized.status,413);
+  }finally{
+    if(previous===undefined)delete process.env.HEXOSTUDIO_MODE;else process.env.HEXOSTUDIO_MODE=previous;
+    if(secret===undefined)delete process.env.HEXOSTUDIO_SECRET;else process.env.HEXOSTUDIO_SECRET=secret;
+  }
+});

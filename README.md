@@ -8,7 +8,7 @@
 
 **网页 · macOS · Windows** ｜ **本机目录 · GitHub · GitLab** ｜ **深浅色 · 中英文**
 
-[快速开始](#快速开始) · [使用指南](https://github.com/Morainet/HexoStudio/blob/main/docs/guide.md) · [部署与配置](https://github.com/Morainet/HexoStudio/blob/main/docs/configuration.md) · [开发与发布](https://github.com/Morainet/HexoStudio/blob/main/docs/development.md)
+[快速开始](#快速开始) · [云端部署](docs/cloud-deployment.md) · [使用指南](docs/guide.md) · [本地配置](docs/configuration.md) · [开发与发布](docs/development.md)
 
 ![HexoStudio 深色工作台](https://raw.githubusercontent.com/Morainet/HexoStudio/main/docs/images/workspace-dark.png)
 
@@ -17,10 +17,18 @@
 - **内容管理**：文章、草稿、独立页面，支持搜索、筛选与分页。
 - **Markdown 写作**：实时预览、快捷保存、图片粘贴与拖拽上传。
 - **站点配置**：编辑 Hexo 与主题配置，保留注释和自定义字段。
-- **Git 与部署**：查看差异、暂存、提交、拉取、推送，执行 Hexo 构建与部署。
+- **Git 与部署**：本地查看差异、暂存、提交、拉取、推送；云端通过 API 直接提交到仓库。
 - **账号与外观**：管理员登录，深色 / 浅色 / 跟随系统，简体中文 / English。
 
+## 云端部署
+
+提供 **Vercel、Netlify、Render、Railway、Docker** 部署配置，也可运行在通用 Node.js 平台。准备 PostgreSQL / MySQL / MongoDB，在平台填写数据库、固定域名和两项密钥，再按网页引导创建管理员、连接 GitHub / GitLab 博客。
+
+云端每次保存直接生成仓库提交；博客构建由仓库自己的自动化流水线完成。无需本机目录或持久磁盘。具体步骤、环境变量与限制见 **[云端部署指南](docs/cloud-deployment.md)**。
+
 ## 快速开始
+
+以下是本机 / 桌面版的启动方式。
 
 准备 **Node.js 22.12+、npm、Git** 和一个 **Hexo 源码项目**，以及可连接的 **PostgreSQL、MySQL 或 MongoDB**。数据库用于保存管理员账号，本机运行也需要配置。
 
@@ -83,7 +91,7 @@ hs start
 
 本机构建产物位于 `dist/`。GitHub Actions 提供：
 
-- **CI**：运行 Node.js 22 / 24 检查、测试与漏洞扫描，在 Linux / Windows 验证 npm 安装包。
+- **CI**：运行 Node.js 22 / 24 检查、测试与漏洞扫描，在 Linux / Windows 验证 npm 安装包；另有三种云端数据库集成测试、Netlify 函数产物验证和 Docker 构建。
 - **Desktop builds**：手动构建 macOS Apple Silicon / Intel、Windows x64 安装包；推送匹配版本的 `v*` 标签时创建 Release 草稿。
 
 [查看 Actions](https://github.com/Morainet/HexoStudio/actions) · [构建与发布说明](https://github.com/Morainet/HexoStudio/blob/main/docs/development.md#github-actions-自动化)

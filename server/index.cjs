@@ -82,10 +82,16 @@ function staticFile(req, res, pathname) {
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer'
   });
-  fs.createReadStream(path.join(publicDir, name)).pipe(res);
+  if (req.method === 'HEAD') return res.end();
+  fs.createReadStream(path.join(process.env.HEXOSTUDIO_PUBLIC_DIR || publicDir, name)).on('error', error => res.destroy(error)).pipe(res);
 }
 
+let cloudHandler;
 async function handle(req, res) {
+  if (process.env.HEXOSTUDIO_MODE === 'cloud') {
+    try { cloudHandler ||= require('./cloud.cjs').createCloudHandler(); return await cloudHandler(req, res, staticFile); }
+    catch { return send(res, 503, { error: '云端部署配置无效，请检查数据库、访问地址和密钥环境变量' }); }
+  }
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (req.method === 'GET' && url.pathname.startsWith('/images/hexostudio/')) {
@@ -233,7 +239,7 @@ async function handle(req, res) {
 }
 
 function startServer(port = Number(process.env.HEXOSTUDIO_PORT || 4545), bind = host) {
-  if (!['127.0.0.1', 'localhost', '::1'].includes(bind) && !token) {
+  if (process.env.HEXOSTUDIO_MODE !== 'cloud' && !['127.0.0.1', 'localhost', '::1'].includes(bind) && !token) {
     return Promise.reject(new Error('监听非本机地址时必须设置 HEXOSTUDIO_TOKEN'));
   }
   const server = http.createServer(handle);

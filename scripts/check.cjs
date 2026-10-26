@@ -15,5 +15,5 @@ function checkDirectory(directory) {
   }
 }
 
-for (const directory of ['bin', 'public', 'server', 'desktop', 'scripts', 'test']) checkDirectory(directory);
+for (const directory of ['bin', 'public', 'server', 'desktop', 'scripts', 'test', 'api', 'netlify']) checkDirectory(directory);
 console.log('JavaScript syntax checks passed.');

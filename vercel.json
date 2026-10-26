@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm ci --omit=dev --ignore-scripts",
+  "buildCommand": "node scripts/cloud-build.cjs",
+  "outputDirectory": "dist/cloud",
+  "functions": {
+    "api/entry.js": {
+      "maxDuration": 60,
+      "includeFiles": "public/**"
+    }
+  },
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/entry" }]
+}

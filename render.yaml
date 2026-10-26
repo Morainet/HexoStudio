@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: hexostudio
+    runtime: docker
+    healthCheckPath: /api/health
+    envVars:
+      - key: HEXOSTUDIO_DATABASE_URL
+        sync: false
+      - key: HEXOSTUDIO_ORIGIN
+        sync: false
+      - key: HEXOSTUDIO_SECRET
+        sync: false
+      - key: HEXOSTUDIO_SETUP_KEY
+        sync: false

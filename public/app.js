@@ -86,7 +86,7 @@ function viewError(title, message, retry) {
   $('#view').innerHTML = `${pageHead('WORKSPACE', title, '')}<section class="panel empty"><div class="symbol">${icon('folder')}</div><h2>${t("暂时无法加载")}</h2><p>${escapeHTML(message)}</p><button id="retry-view" class="secondary">${t("重新加载")}</button></section>`;
   $('#retry-view').onclick = retry;
 }
-function date(value) { return value ? String(value).slice(0, 10) : t("未设置日期"); }
+function date(value) { return /^\d{4}-\d{2}-\d{2}/.test(String(value)) ? String(value).slice(0, 10) : t("未设置日期"); }
 function fullName(path) { return path?.split('/').at(-1) || ''; }
 function draftKey(path, kind = state.current?.kind || 'post') { return `hexostudio:draft:${state.root}:${kind}:${path}`; }
 function metadataValues(meta = {}) { return { title: meta.title || '', date: meta.date || '', tags: (meta.tags || []).join(', '), categories: (meta.categories || []).join(', ') }; }
@@ -142,7 +142,7 @@ function updateShell() {
   const title = { dashboard: t("概览"), posts: t("文章管理"), pages: t("页面管理"), editor: state.current?.kind === 'draft' ? t("编辑草稿") : state.current?.kind === 'page' ? t("编辑页面") : t("编辑文章"), config: t("站点配置"), git: t("Git 仓库"), deploy: t("构建与部署") }[state.view];
   $('#breadcrumb').textContent = t`工作空间 / ${title}`;
 }
-function pageHead(kicker, title, subtitle, actions = '') { return `<div class="page-head"><div><h1>${title}</h1><p>${subtitle}</p></div><div class="head-actions">${actions}</div></div>`; }
+function pageHead(kicker, title, subtitle, actions = '') { return `<div class="page-head"><div><h1>${title}</h1><p>${subtitle}</p>${state.cloud ? `<p class="cloud-note">${t("云端模式：保存、上传和删除会直接提交到远端仓库。")}</p>` : ''}</div><div class="head-actions">${actions}</div></div>`; }
 function row(post, compact = false) {
   const identity = `data-kind="${post.kind}" data-open="${escapeHTML(post.path)}"`;
   if (compact) return `<div class="post-row"><div class="post-avatar">${icon('post')}</div><div class="post-summary"><div class="post-title">${escapeHTML(post.title)}</div><div class="post-meta">${escapeHTML(date(post.date || post.modified))} · ${post.words} ${t("字 ·")} ${escapeHTML(post.path)}</div></div><button ${identity}>${t("编辑")} ${icon('arrow')}</button></div>`;
@@ -311,6 +311,7 @@ async function uploadImages(files) {
   button.disabled = true;
   try {
     for (const file of files) {
+      if (state.cloud && file.size > 3_000_000) throw new Error(t("云端图片不能超过 3 MB"));
       if (file.size > 8_000_000) throw new Error(t`${file.name} 超过 8 MB`);
       $('#editor-status').textContent = t`正在上传 ${file.name}…`;
       const result = await api('assets', { method: 'POST', data: { name: file.name, data: await imageBase64(file) } });
@@ -337,7 +338,15 @@ function configPage() {
   $('#reload-config').onclick = () => loadConfig(config.scope);
   $('#save-config').onclick = saveConfig;
 }
+function cloudRepositoryPage(deploy = false) {
+  const connection = state.connection;
+  const host = connection.provider === 'github' ? 'github.com' : 'gitlab.com';
+  const url = `https://${host}/${connection.repository.split('/').map(encodeURIComponent).join('/')}`;
+  const pipeline = url + (connection.provider === 'github' ? '/actions' : '/-/pipelines');
+  $('#view').innerHTML = `${pageHead('CLOUD', deploy ? t("构建与部署") : t("Git 仓库"), escapeHTML(`${connection.repository} · ${connection.branch}`))}<section class="panel"><h3>${t("保存即提交")}</h3><p>${t("每次内容变更都会生成仓库提交，无需暂存或推送。请在博客仓库配置自动构建，提交后由流水线更新站点。")}</p><div class="actions"><a class="secondary" href="${url}" target="_blank" rel="noopener noreferrer">${t("打开仓库")}</a><a class="primary" href="${pipeline}" target="_blank" rel="noopener noreferrer">${t("查看部署流水线")}</a></div></section>`;
+}
 function deployPage() {
+  if (state.cloud) return cloudRepositoryPage(true);
   $('#view').innerHTML = `${pageHead('PUBLISH WORKFLOW', t("构建与部署"), t("运行当前 Hexo 项目中已安装的本地命令。"))}
     <div class="command-grid"><button class="command-card" data-command="clean"><span class="command-icon">${icon('settings')}</span><strong>${t("清理缓存")}</strong><small>${t("hexo clean · 清理生成文件与缓存")}</small></button><button class="command-card" data-command="generate"><span class="command-icon">${icon('pages')}</span><strong>${t("生成静态站点")}</strong><small>${t("hexo generate · 输出到 public 目录")}</small></button><button class="command-card" data-command="deploy"><span class="command-icon">${icon('rocket')}</span><strong>${t("部署博客")}</strong><small>${t("hexo deploy · 使用项目当前部署配置")}</small></button></div>
     <section class="panel"><div class="panel-title"><h3>${t("运行日志")}</h3><button id="clear-log">${t("清空日志")}</button></div><div id="terminal" class="terminal" role="log" aria-label="${t("构建日志")}">${escapeHTML(state.commandLog || t("准备就绪。选择上方操作以运行 Hexo 命令。"))}</div></section>`;
@@ -346,6 +355,7 @@ function deployPage() {
   $('#clear-log').onclick = () => { state.commandLog = ''; $('#terminal').textContent = t("日志已清空。"); };
 }
 function gitPage() {
+  if (state.cloud) return cloudRepositoryPage();
   const git = state.git;
   if (!git) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t("Git 仓库"), t("正在读取仓库状态…"))}`; return; }
   if (!git.isRepository) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t("Git 仓库"), t("当前 Hexo 项目不是 Git 仓库。"))}<section class="panel"><p class="muted">${t("可以切换到 GitHub 或 GitLab 远端仓库，或连接已有的本机 Git 仓库。")}</p><button id="git-connect" class="primary">${t("连接仓库")}</button></section>`; $('#git-connect').onclick = showProjectModal; return; }
@@ -418,7 +428,7 @@ function render() { if (!$('#auth-screen').classList.contains('hidden')) return;
 function connectionForm() {
   return `<div class="connection-choices" role="group" aria-label="${t("博客来源")}"><button type="button" data-connect-mode="local" class="active" aria-pressed="true">${icon("folder")}<span><strong>${t("本机目录")}</strong><small>${t("管理已有的 Hexo 项目")}</small></span></button><button type="button" data-connect-mode="remote" aria-pressed="false">${icon("git")}<span><strong>GitHub / GitLab</strong><small>${t("使用仓库地址与 Token")}</small></span></button></div>
     <div id="local-fields" class="connection-fields"><p>${t("输入包含")} <code>_config.yml</code> ${t("与")} <code>source/_posts</code> ${t("的项目目录。")}</p><label for="root-input">${t("Hexo 项目目录")}</label><input id="root-input" placeholder="${t("/Users/name/blog 或 C:\\Users\\name\\blog")}"><div class="connect-actions"><button id="connect-project" class="primary">${t("连接本机项目")}</button><button id="browse-project" class="secondary hidden">${t("浏览目录…")}</button></div></div>
-    <div id="remote-fields" class="connection-fields hidden"><p>${t("用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。")}</p><div class="connection-grid"><div><label for="remote-provider">${t("服务商")}</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">${t("仓库")}</label><input id="remote-repo" placeholder="${t("username/repo 或 HTTPS 地址")}" autocomplete="off"></div><div class="full"><label for="remote-token">${t("访问 Token")}</label><input id="remote-token" type="password" placeholder="${t("有仓库读写权限的 Token")}" autocomplete="off"></div><div class="full"><details class="advanced-options"><summary>${t("更多选项 · 分支与博客路径")}</summary><div><label for="remote-branch">${t("项目分支")}</label><input id="remote-branch" placeholder="${t("留空使用默认分支")}" autocomplete="off"></div><div class="full"><label for="remote-path">${t("博客路径")}</label><input id="remote-path" placeholder="${t("留空为仓库根目录；例如 blog")}" autocomplete="off"></div></details></div></div><button id="connect-remote" class="primary">${t("连接远端仓库")}</button><p class="secret-note">${t("Token 保存在本机设置文件中，不写入 Git 远端地址。")}</p></div><p id="connection-error" class="form-error hidden" role="alert"></p>`;
+    <div id="remote-fields" class="connection-fields hidden"><p>${t(state.cloud ? "通过仓库 API 管理内容，保存后直接提交到所选分支。" : "用 HTTPS 仓库地址和 Token 连接，项目会克隆到本机工作目录。")}</p><div class="connection-grid"><div><label for="remote-provider">${t("服务商")}</label><select id="remote-provider"><option value="github">GitHub</option><option value="gitlab">GitLab</option></select></div><div><label for="remote-repo">${t("仓库")}</label><input id="remote-repo" placeholder="${t("username/repo 或 HTTPS 地址")}" autocomplete="off"></div><div class="full"><label for="remote-token">${t("访问 Token")}</label><input id="remote-token" type="password" placeholder="${t("有仓库读写权限的 Token")}" autocomplete="off"></div><div class="full"><details class="advanced-options"><summary>${t("更多选项 · 分支与博客路径")}</summary><div><label for="remote-branch">${t("项目分支")}</label><input id="remote-branch" placeholder="${t("留空使用默认分支")}" autocomplete="off"></div><div class="full"><label for="remote-path">${t("博客路径")}</label><input id="remote-path" placeholder="${t("留空为仓库根目录；例如 blog")}" autocomplete="off"></div></details></div></div><button id="connect-remote" class="primary">${t("连接远端仓库")}</button><p class="secret-note">${t(state.cloud ? "Token 加密保存在云端数据库中。" : "Token 保存在本机设置文件中，不写入 Git 远端地址。")}</p></div><p id="connection-error" class="form-error hidden" role="alert"></p>`;
 }
 function bindConnectionForm() {
   document.querySelectorAll('[data-connect-mode]').forEach(button => button.onclick = () => {
@@ -429,6 +439,10 @@ function bindConnectionForm() {
     $('#local-fields').classList.toggle('hidden', remote);
     $('#remote-fields').classList.toggle('hidden', !remote);
   });
+  if (state.cloud) {
+    document.querySelector('[data-connect-mode="remote"]').click();
+    document.querySelector('.connection-choices').classList.add('hidden');
+  }
   $('#connect-project').onclick = connectProject;
   $('#connect-remote').onclick = connectRemote;
   $('#root-input').onkeydown = event => { if (event.key === 'Enter') connectProject(); };
@@ -437,7 +451,7 @@ function bindConnectionForm() {
 function onboarding() {
   $('#app').classList.add('hidden');
   $('#setup-blog-screen').classList.remove('hidden');
-  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="setup-progress" data-step="3" role="progressbar" aria-valuemin="1" aria-valuemax="3" aria-valuenow="3" aria-label="${t("初始化进度")}"><div class="setup-progress-caption"><span>${t("首次设置")}</span><span>3 / 3</span></div><div class="setup-progress-track" aria-hidden="true"><span></span></div></div><div class="auth-heading"><div class="auth-brand" aria-hidden="true">H</div><div><div class="eyebrow">HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1></div></div><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
+  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="setup-progress" data-step="3" role="progressbar" aria-valuemin="1" aria-valuemax="${state.cloud ? 2 : 3}" aria-valuenow="${state.cloud ? 2 : 3}" aria-label="${t("初始化进度")}"><div class="setup-progress-caption"><span>${t("首次设置")}</span><span>${state.cloud ? "2 / 2" : "3 / 3"}</span></div><div class="setup-progress-track" aria-hidden="true"><span></span></div></div><div class="auth-heading"><div class="auth-brand" aria-hidden="true">H</div><div><div class="eyebrow">HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1></div></div><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
   bindConnectionForm();
   DisplayPreferences.place();
   $('#setup-logout').onclick = () => { if (!state.connecting) $('#logout').click(); };
@@ -448,6 +462,7 @@ function connectionError(message) {
 }
 async function connectBlog(remote) {
   if (state.connecting) return;
+  if (state.cloud && !remote) return;
   if (state.busy || state.gitBusy) return toast(t("当前操作完成后才能切换项目"));
   if (!canLeaveEditor() || !canLeaveConfig()) return;
   const button = $(remote ? '#connect-remote' : '#connect-project');
@@ -572,7 +587,7 @@ async function requestPublish(path) {
   }
   const draft = state.drafts.find(item => item.path === path);
   if (!draft) return toast(t("草稿不存在，请刷新列表"));
-  modal(`<h2 id="modal-title">${t("发布草稿？")}</h2><p>${t("将")} <strong>${escapeHTML(draft.title)}</strong> ${t("移入 source/_posts。发布后可继续编辑，再到「构建与部署」生成静态站点。")}</p><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="confirm-publish">${t("发布为文章")}</button></div>`);
+  modal(`<h2 id="modal-title">${t("发布草稿？")}</h2><p>${t("将")} <strong>${escapeHTML(draft.title)}</strong> ${t(state.cloud ? "移入 source/_posts 并提交到远端分支。博客是否更新取决于仓库的自动部署配置。" : "移入 source/_posts。发布后可继续编辑，再到「构建与部署」生成静态站点。")}</p><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="confirm-publish">${t("发布为文章")}</button></div>`);
   $('#cancel-modal').onclick = closeModal;
   $('#confirm-publish').onclick = async () => {
     const outcome = await modalAction($('#confirm-publish'), async () => {
@@ -597,7 +612,7 @@ function confirmDelete(path, kind = 'post') {
   $('#cancel-modal').onclick = closeModal;
   $('#confirm-delete').onclick = async () => {
     const outcome = await modalAction($('#confirm-delete'), async () => {
-      await api('post', { method: 'DELETE', params: { path, kind } });
+      await api('post', { method: 'DELETE', params: { path, kind, ...(state.cloud ? { modified: state[kind === 'draft' ? 'drafts' : kind === 'page' ? 'pages' : 'posts'].find(item => item.path === path)?.modified || '' } : {}) } });
       clearDraft(path, kind);
       const key = kind === 'draft' ? 'drafts' : kind === 'page' ? 'pages' : 'posts';
       state[key] = state[key].filter(item => item.path !== path);
@@ -739,19 +754,21 @@ $('#auth-storage-type').onchange = () => {
 };
 function authStep(step) {
   const setup = $('#auth-form').dataset.mode === 'setup';
-  const storage = setup && step === 'storage';
+  const storage = setup && step === 'storage' && !state.cloud;
   $('#auth-form').dataset.step = storage ? 'storage' : 'account';
   $('#auth-account-fields').disabled = storage;
   $('#auth-account-fields').classList.toggle('hidden', storage);
   $('#auth-storage-row').disabled = !storage;
   $('#auth-storage-row').classList.toggle('hidden', !storage);
-  $('#auth-back').classList.toggle('hidden', !setup || storage);
+  $('#auth-back').classList.toggle('hidden', !setup || storage || Boolean(state.cloud));
   $('#auth-steps').classList.toggle('hidden', !setup);
   $('#auth-steps').dataset.step = storage ? '1' : '2';
-  $('#auth-steps').setAttribute('aria-valuenow', storage ? '1' : '2');
-  $('#auth-step-count').textContent = storage ? '1 / 3' : '2 / 3';
+  $('#auth-steps').setAttribute('aria-valuemax', state.cloud ? '2' : '3');
+  $('#auth-steps').setAttribute('aria-valuenow', state.cloud || storage ? '1' : '2');
+  $('#auth-steps').classList.toggle('cloud-setup', Boolean(state.cloud));
+  $('#auth-step-count').textContent = state.cloud ? '1 / 2' : storage ? '1 / 3' : '2 / 3';
   $('#auth-title').textContent = !setup ? t("登录工作台") : storage ? t("连接数据库") : t("设置管理员");
-  $('#auth-description').textContent = !setup ? t("使用管理员账号继续管理博客。") : storage ? t("先连接数据库，用于保存管理员账号。") : t("数据库已连接，设置后台登录账号。");
+  $('#auth-description').textContent = !setup ? t("使用管理员账号继续管理博客。") : storage ? t("先连接数据库，用于保存管理员账号。") : t(state.cloud ? "数据库已就绪，输入部署时设置的初始化密钥并创建管理员。" : "数据库已连接，设置后台登录账号。");
   $('#auth-submit').textContent = !setup ? t("登录") : storage ? t("验证并继续") : t("创建账号并继续");
   $('#auth-error').classList.add('hidden');
   $(storage ? '#auth-storage-type' : '#auth-username').focus();
@@ -772,13 +789,16 @@ function showAuth(configured) {
   storageFields($('#auth-storage-type').value, 'auth');
   $('#auth-confirm').required = !configured;
   $('#auth-confirm').disabled = configured;
+  $('#auth-setup-key-row').classList.toggle('hidden', !state.cloud || configured);
+  $('#auth-setup-key').disabled = !state.cloud || configured;
+  $('#auth-setup-key').required = Boolean(state.cloud && !configured);
   $('#auth-username').pattern = configured ? '.*' : '[\\p{L}\\p{N}_\\-]{3,32}';
   $('#auth-username').title = t("3–32 位字母、数字、下划线或连字符");
   $('#auth-password').minLength = configured ? 1 : 12;
   $('#auth-password').placeholder = configured ? '' : t("至少 12 个字符");
   $('#auth-password').autocomplete = configured ? 'current-password' : 'new-password';
   $('#auth-form').dataset.mode = configured ? 'login' : 'setup';
-  authStep(configured ? 'account' : 'storage');
+  authStep(configured || state.cloud ? 'account' : 'storage');
   DisplayPreferences.place();
 }
 async function loadWorkspace() {
@@ -786,8 +806,9 @@ async function loadWorkspace() {
   state.root = status.root;
   state.site = status.site;
   state.connection = status.connection;
-  state.mode = status.mode;
-  $('#connection').textContent = status.mode === 'desktop' ? t("桌面工作台") : t("本地工作台");
+  state.mode = status.mode; state.cloud = status.mode === 'cloud';
+  $('#account-storage').classList.toggle('hidden', state.cloud);
+  $('#connection').textContent = status.mode === 'cloud' ? t("云端工作台") : status.mode === 'desktop' ? t("桌面工作台") : t("本地工作台");
   if (state.root) await refreshPosts();
   state.view = 'dashboard';
   $('#auth-screen').classList.add('hidden');
@@ -819,12 +840,13 @@ $('#auth-form').onsubmit = async event => {
       authStep('account');
       return;
     }
-    const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? { storage: storageValue('auth') } : {}) } });
+    const result = await api(`auth/${mode}`, { method: 'POST', data: { username, password, ...(mode === 'setup' ? state.cloud ? { setupKey: $('#auth-setup-key').value } : { storage: storageValue('auth') } : {}) } });
     state.csrf = result.csrf;
     state.authReady = true;
     $('#auth-form').noValidate = true;
     $('#auth-password').value = '';
     $('#auth-confirm').value = '';
+    $('#auth-setup-key').value = '';
     storageFields($('#auth-storage-type').value, 'auth');
     await loadWorkspace();
   } catch (error) {
@@ -941,7 +963,7 @@ document.addEventListener('hexostudio:language', () => {
     if (errorVisible) { $('#auth-error').textContent = t(error); $('#auth-error').classList.remove('hidden'); }
   } else {
     render();
-    $('#connection').textContent = state.mode === 'desktop' ? t('桌面工作台') : t('本地工作台');
+    $('#connection').textContent = state.cloud ? t('云端工作台') : state.mode === 'desktop' ? t('桌面工作台') : t('本地工作台');
     if (remote) document.querySelector('[data-connect-mode="remote"]')?.click();
     for (const field of fields) {
       const el = document.getElementById(field.id);
@@ -965,6 +987,7 @@ window.addEventListener('beforeunload', event => { if (state.editorDirty || stat
 (async () => {
   try {
     const status = await api('auth/status');
+    state.cloud = Boolean(status.cloud);
     if (!status.authenticated) return showAuth(status.configured);
     state.csrf = status.csrf;
     await loadWorkspace();

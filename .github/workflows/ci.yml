@@ -14,6 +14,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cloud-bundle:
+    name: Netlify function archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      NETLIFY_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts
+      - run: npm exec --yes --package=netlify-cli@27.14.2 -- netlify functions:build --src netlify/functions --functions dist/netlify-functions
+      - run: node scripts/verify-netlify.cjs
+
+  cloud-databases:
+    name: Cloud / PostgreSQL, MySQL, MongoDB
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: studio
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: studio
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U studio" --health-interval 10s --health-timeout 5s --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test-password
+          MYSQL_DATABASE: studio
+          MYSQL_USER: studio
+          MYSQL_PASSWORD: test-password
+        ports: ['3306:3306']
+        options: --health-cmd "mysqladmin ping -h 127.0.0.1" --health-interval 10s --health-timeout 5s --health-retries 10
+      mongo:
+        image: mongo:7
+        ports: ['27017:27017']
+        options: --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1})'" --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      HEXOSTUDIO_TEST_POSTGRES_URL: postgresql://studio:test-password@127.0.0.1:5432/studio
+      HEXOSTUDIO_TEST_MYSQL_URL: mysql://studio:test-password@127.0.0.1:3306/studio
+      HEXOSTUDIO_TEST_MONGODB_URL: mongodb://127.0.0.1:27017/studio
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --omit=dev --ignore-scripts
+      - run: node --test test/cloud-database.test.cjs
+      - run: docker build -t hexostudio-cloud:test .
+
   test:
     name: Node.js ${{ matrix.node }}
     runs-on: ubuntu-latest

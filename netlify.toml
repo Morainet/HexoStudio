@@ -1,0 +1,14 @@
+[build]
+  command = "node scripts/cloud-build.cjs"
+  publish = "dist/cloud"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NPM_FLAGS = "--omit=dev --ignore-scripts"
+  ELECTRON_SKIP_BINARY_DOWNLOAD = "1"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = ["pg", "mysql2", "mongodb", "markdown-it", "sql.js"]
+  included_files = ["public/**"]

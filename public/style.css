@@ -454,3 +454,7 @@ input:read-only, textarea:read-only { background: var(--raised); }
   .preferences-home { top: 12px; right: 16px; }
   .auth-card { max-height: calc(100dvh - 92px); }
 }
+
+.cloud-note { color: var(--accent) !important; font-size: 11px !important; }
+
+.setup-progress.cloud-setup .setup-progress-track>span { width: 50%; }

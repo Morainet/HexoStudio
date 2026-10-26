@@ -1,7 +1,7 @@
 {
   "name": "hexostudio",
   "version": "0.8.0",
-  "description": "A local web and desktop studio for Hexo blogs",
+  "description": "A local, cloud and desktop studio for Hexo blogs",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -24,6 +24,7 @@
   },
   "scripts": {
     "web": "node bin/hs.cjs start",
+    "start": "node bin/hs.cjs start",
     "desktop": "electron desktop/main.cjs",
     "check": "node scripts/check.cjs",
     "test": "node --test",

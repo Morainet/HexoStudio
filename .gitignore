@@ -2,3 +2,8 @@ node_modules/
 dist/
 .hexostudio.json
 .DS_Store
+.env
+.env.*
+!.env.cloud.example
+.vercel/
+.netlify/
