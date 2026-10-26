@@ -32,6 +32,7 @@ function fixture() {
     toast:(...args)=>notices.push(args),refreshPosts:async()=>{},localDateTime:()=> '2026-10-25 12:00:00',
     openPost:async(...args)=>opened.push(args),render:()=>{},clearDraft:()=>{}
   });
+  include(ctx,'const icon =', 'const endpoint =');
   include(ctx,'function modal(content)', 'function viewError(');
   ctx.modal('<h2>Temporary form</h2>');
   return {ctx,$,state,requests,notices,opened,input,submit,cancel,preserved,opener,document,element};

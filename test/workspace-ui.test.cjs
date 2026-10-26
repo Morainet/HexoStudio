@@ -8,6 +8,7 @@ function load(start, end, globals) {
   const HexoI18n = require('../public/i18n.js');
   HexoI18n.setLanguage('zh-CN');
   const context = vm.createContext({ t: HexoI18n.t, HexoI18n, ...globals });
+  vm.runInContext(source.slice(source.indexOf('const icon ='), source.indexOf('const endpoint =')), context);
   vm.runInContext(source.slice(source.indexOf(start), source.indexOf(end, source.indexOf(start))), context);
   return context;
 }
