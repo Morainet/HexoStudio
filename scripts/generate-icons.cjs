@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
-const source = path.join(root, 'docs/brand/hexostudio-logo-studio.png');
+const source = path.join(root, 'docs/brand/hexostudio-icon-black.png');
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'hexostudio-icons-'));
 const desktop = path.join(root, 'desktop/icons');
 const web = path.join(root, 'public');
@@ -36,7 +36,7 @@ try {
   png(192, path.join(web, 'icon-192.png'));
   png(180, path.join(web, 'apple-touch-icon.png'));
   const embedded = fs.readFileSync(path.join(web, 'icon-192.png')).toString('base64');
-  fs.writeFileSync(path.join(web, 'favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><image width="192" height="192" href="data:image/png;base64,${embedded}"/></svg>\n`);
+  fs.writeFileSync(path.join(web, 'favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><style>@media(prefers-color-scheme:dark){image{filter:brightness(0) invert(1)}}</style><image width="192" height="192" href="data:image/png;base64,${embedded}"/></svg>\n`);
   png(1024, path.join(desktop, 'icon.png'));
   ico([16, 32, 48], path.join(web, 'favicon.ico'));
   ico([16, 24, 32, 48, 64, 128, 256], path.join(desktop, 'icon.ico'));
