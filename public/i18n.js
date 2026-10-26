@@ -305,6 +305,8 @@ const HexoI18n = (() => {
   "验证并继续": "Verify & continue",
   "创建账号并继续": "Create account & continue",
   "3–32 位字母、数字、下划线或连字符": "3–32 letters, numbers, underscores or hyphens",
+  "显示密码": "Show password",
+  "隐藏密码": "Hide password",
   "至少 8 个字符": "At least 8 characters",
   "桌面工作台": "Desktop workspace",
   "本地工作台": "Local workspace",

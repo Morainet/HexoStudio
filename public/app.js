@@ -3,6 +3,29 @@ const $ = selector => document.querySelector(selector);
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const icon = (name, className = 'icon') => `<svg class="${className}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const endpoint = (name, params = {}) => `/api/${name}${Object.keys(params).length ? '?' + new URLSearchParams(params) : ''}`;
+function setPasswordVisible(input, visible) {
+  input.type = visible ? 'text' : 'password';
+  const button = input.parentElement.querySelector('[data-password-toggle]');
+  const label = visible ? '隐藏密码' : '显示密码';
+  button.dataset.i18nAriaLabel = label;
+  button.setAttribute('aria-label', t(label));
+  button.innerHTML = icon(visible ? 'eye-off' : 'eye');
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest('[data-password-toggle]');
+  if (!button || button.disabled) return;
+  const input = document.getElementById(button.dataset.passwordToggle);
+  if (!input || input.disabled || input.readOnly) return;
+  const start = input.selectionStart, end = input.selectionEnd;
+  setPasswordVisible(input, input.type === 'password');
+  input.focus({ preventScroll: true });
+  if (start !== null) input.setSelectionRange(start, end);
+});
+document.addEventListener('reset', event => {
+  event.target.querySelectorAll('[data-password-toggle]').forEach(button => {
+    setPasswordVisible(document.getElementById(button.dataset.passwordToggle), false);
+  });
+});
 async function api(name, options = {}) {
   const method = options.method || 'GET';
   const response = await fetch(endpoint(name, options.params), {
@@ -878,7 +901,7 @@ $('#logout').onclick = async () => {
   showAuth(true);
 };
 $('#account-settings').onclick = () => {
-  modal(`<h2 id="modal-title">${t("修改管理员密码")}</h2><p>${t("修改后所有设备都需要重新登录。")}</p><form id="password-form" class="password-form"><label>${t("当前密码")}<input id="old-password" type="password" autocomplete="current-password" required></label><label>${t("新密码")}<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label><label>${t("确认新密码")}<input id="confirm-password" type="password" autocomplete="new-password" required></label><div class="actions"><button type="button" class="secondary" id="cancel-password">${t("取消")}</button><button type="submit" class="primary">${t("保存并退出")}</button></div></form>`);
+  modal(`<h2 id="modal-title">${t("修改管理员密码")}</h2><p>${t("修改后所有设备都需要重新登录。")}</p><form id="password-form" class="password-form"><label>${t("当前密码")}<span class="password-control"><input id="old-password" type="password" autocomplete="current-password" required><button type="button" class="password-toggle" data-password-toggle="old-password" aria-controls="old-password" aria-label="${t("显示密码")}" data-i18n-aria-label="显示密码">${icon("eye")}</button></span></label><label>${t("新密码")}<span class="password-control"><input id="new-password" type="password" autocomplete="new-password" minlength="8" required><button type="button" class="password-toggle" data-password-toggle="new-password" aria-controls="new-password" aria-label="${t("显示密码")}" data-i18n-aria-label="显示密码">${icon("eye")}</button></span></label><label>${t("确认新密码")}<span class="password-control"><input id="confirm-password" type="password" autocomplete="new-password" required><button type="button" class="password-toggle" data-password-toggle="confirm-password" aria-controls="confirm-password" aria-label="${t("显示密码")}" data-i18n-aria-label="显示密码">${icon("eye")}</button></span></label><div class="actions"><button type="button" class="secondary" id="cancel-password">${t("取消")}</button><button type="submit" class="primary">${t("保存并退出")}</button></div></form>`);
   $('#cancel-password').onclick = closeModal;
   $('#password-form').onsubmit = async event => {
     event.preventDefault();

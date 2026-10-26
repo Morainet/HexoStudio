@@ -302,6 +302,11 @@ input:read-only, textarea:read-only { background: var(--raised); }
 .auth-fields { border: 0; margin: 0; padding: 0; min-width: 0; }
 .auth-card label, .password-form label { display: block; margin: 14px 0 0; color: var(--ink-soft); font-size: 12px; font-weight: 500; }
 .auth-card input, .password-form input, .auth-card select, .modal select { display: block; width: 100%; min-width: 0; height: 40px; border: 1px solid var(--control-border); border-radius: 6px; padding: 0 11px; background: var(--surface); margin-top: 7px; font-size: 13px; }
+.password-control { position: relative; display: block; }
+.auth-card .password-control input, .password-form .password-control input { padding-right: 44px; }
+.password-toggle { position: absolute; right: 3px; top: 3px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); cursor: pointer; }
+.password-toggle:hover { color: var(--ink); background: var(--hover); }
+.password-toggle .icon { width: 18px; height: 18px; pointer-events: none; }
 .auth-passwords { display: grid; grid-template-columns: minmax(0, 1fr); }
 .auth-setup .auth-passwords { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* Setup uses a quiet progress indicator, with one focused form per step. */
