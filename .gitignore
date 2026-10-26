@@ -7,3 +7,5 @@ dist/
 !.env.cloud.example
 .vercel/
 .netlify/
+
+oem.json

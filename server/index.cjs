@@ -7,6 +7,7 @@ const core = require('./core.cjs');
 const { renderPreview } = require('./preview.cjs');
 const assets = require('./assets.cjs');
 const git = require('./git.cjs');
+const { brandingRecord, brandingMutation } = require('./branding.cjs');
 const { AuthManager } = require('./auth.cjs');
 
 const publicDir = path.join(__dirname, '..', 'public');
@@ -74,7 +75,7 @@ function sameOrigin(req) {
 }
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
+  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
   if (!Object.hasOwn(types, name)) return send(res, 404, { error: '未找到页面' });
   res.writeHead(200, {
     'Content-Type': types[name].startsWith('text/') ? `${types[name]}; charset=utf-8` : types[name],
@@ -110,6 +111,7 @@ async function handle(req, res) {
     }
     if (!url.pathname.startsWith('/api/')) return staticFile(req, res, url.pathname);
     if (req.method !== 'GET' && !sameOrigin(req)) return send(res, 403, { error: '跨站请求被拒绝' });
+    if (req.method === 'GET' && url.pathname === '/api/branding') return send(res, 200, brandingRecord(loadSettings().branding));
     if (req.method === 'GET' && url.pathname === '/api/auth/status') return send(res, 200, await auth.status(req));
     if (req.method === 'POST' && url.pathname === '/api/auth/storage/test') {
       const data = await body(req);
@@ -128,6 +130,12 @@ async function handle(req, res) {
     }
     if (!authorized(req)) return send(res, 401, { error: '请先登录' });
     if (req.method !== 'GET' && !tokenAuthorized(req)) auth.checkCsrf(req);
+    if (['PUT', 'DELETE'].includes(req.method) && url.pathname === '/api/branding') {
+      const input = await body(req), settings = loadSettings();
+      settings.branding = brandingMutation(settings.branding, input, req.method === 'DELETE');
+      saveSettings(settings);
+      return send(res, 200, brandingRecord(settings.branding));
+    }
     if (req.method === 'POST' && url.pathname === '/api/auth/logout') {
       return send(res, 200, { ok: true }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
     }
@@ -143,7 +151,7 @@ async function handle(req, res) {
       return send(res, 200, { storage }, { 'Set-Cookie': auth.clearSession(req, secureCookie(req)) });
     }
     if (req.method === 'GET' && url.pathname === '/api/version') return send(res, 200, require('./build-info.cjs').buildInfo());
-    if (req.method === 'GET' && url.pathname === '/api/updates') return send(res, 200, await require('./updates.cjs').checkUpdates());
+    if (req.method === 'GET' && url.pathname === '/api/updates') return send(res, 200, await require('./updates.cjs').checkBrandUpdates(brandingRecord(loadSettings().branding).branding));
     if (req.method === 'GET' && url.pathname === '/api/status') {
       let root = null;
       try { root = getRoot(); } catch { /* project may have moved */ }

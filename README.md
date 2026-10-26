@@ -8,7 +8,7 @@
 
 **网页 · macOS · Windows** ｜ **本机目录 · GitHub · GitLab** ｜ **深浅色 · 中英文**
 
-[快速开始](#快速开始) · [云端部署](docs/cloud-deployment.md) · [使用指南](docs/guide.md) · [本地配置](docs/configuration.md) · [开发与发布](docs/development.md)
+[快速开始](#快速开始) · [云端部署](docs/cloud-deployment.md) · [使用指南](docs/guide.md) · [本地配置](docs/configuration.md) · [OEM 品牌化](docs/branding.md) · [开发与发布](docs/development.md)
 
 ![HexoStudio 深色工作台](https://raw.githubusercontent.com/Morainet/HexoStudio/main/docs/images/workspace-dark.png)
 

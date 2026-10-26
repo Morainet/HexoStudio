@@ -92,3 +92,14 @@ test('website detects same-version deployment changes independently of releases 
   assert.equal(f.state.webUpdateAvailable, false);
   assert.equal(f.$('#web-update-notice').classList.contains('hidden'), true);
 });
+
+test('OEM update links stay within the selected repository and can be hidden', async () => {
+  const f = fixture({ mode: 'desktop' });
+  const opening = f.$('#version-updates').onclick();
+  f.requests[0].resolve({ ...result, releasesUrl: 'https://github.com/acme/studio/releases', releaseUrl: 'https://github.com/acme/studio/releases/tag/v0.9.0' });
+  await opening;
+  assert.equal(f.$('#update-release').href, 'https://github.com/acme/studio/releases/tag/v0.9.0');
+  f.state.updateInfo = { status: 'disabled' }; f.context.paintUpdateStatus();
+  assert.equal(f.$('#update-release').classList.contains('hidden'), true);
+  assert.equal(f.$('#update-status').textContent, '正式版本检查已关闭');
+});

@@ -352,7 +352,7 @@ function configPage() {
   const format = config.scope.endsWith('.json') ? 'JSON' : 'YAML';
   const options = [`<option value="site">${t("Hexo 站点配置 · _config.yml")}</option>`, ...(config.overrides || []).map(filename => `<option value="override:${escapeHTML(filename)}">${escapeHTML(filename)} ${t("· 主题覆盖配置")}</option>`), ...config.themes.map(theme => `<option value="theme:${escapeHTML(theme)}">${escapeHTML(theme)} ${t("· 主题目录配置")}${theme === state.site?.theme ? t("（当前）") : ''}</option>`)].join('');
   $('#view').innerHTML = `${pageHead('SITE SETTINGS', t("站点配置"), t("直接查看并编辑 Hexo 与主题的配置文件。"), `<span id="config-status" class="editor-status" role="status"></span><button id="reload-config" class="secondary">${t("重新读取")}</button><button id="save-config" class="primary">${t("保存配置")}</button>`)}
-    <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} ${t("配置")}"></textarea></section><div class="hint-card">${t("保存前请确认")} ${format} ${t("语法正确。HexoStudio 会保留原有注释和字段，不会重新格式化配置。")}</div>`;
+    <div class="toolbar"><select id="scope" class="scope-select">${options}</select></div><section class="panel editor-panel"><textarea id="config-editor" class="code-area" spellcheck="false" aria-label="${format} ${t("配置")}"></textarea></section><div class="hint-card">${t("保存前请确认")} ${format} ${t("语法正确。原有注释和字段会保留，不会重新格式化配置。")}</div>`;
   $('#scope').value = config.scope;
   $('#scope').onchange = async event => { const selected = event.target.value; if (!await loadConfig(selected)) event.target.value = config.scope; };
   $('#config-editor').value = state.configBuffer ?? config.content;
@@ -474,7 +474,7 @@ function bindConnectionForm() {
 function onboarding() {
   $('#app').classList.add('hidden');
   $('#setup-blog-screen').classList.remove('hidden');
-  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="setup-progress" data-step="3" role="progressbar" aria-valuemin="1" aria-valuemax="${state.cloud ? 2 : 3}" aria-valuenow="${state.cloud ? 2 : 3}" aria-label="${t("初始化进度")}"><div class="setup-progress-caption"><span>${t("首次设置")}</span><span>${state.cloud ? "2 / 2" : "3 / 3"}</span></div><div class="setup-progress-track" aria-hidden="true"><span></span></div></div><div class="auth-heading"><div class="auth-brand" aria-hidden="true">H</div><div><div class="eyebrow">HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1></div></div><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
+  $('#setup-blog-screen').innerHTML = `<section class="auth-card setup-blog-card"><div class="setup-progress" data-step="3" role="progressbar" aria-valuemin="1" aria-valuemax="${state.cloud ? 2 : 3}" aria-valuenow="${state.cloud ? 2 : 3}" aria-label="${t("初始化进度")}"><div class="setup-progress-caption"><span>${t("首次设置")}</span><span>${state.cloud ? "2 / 2" : "3 / 3"}</span></div><div class="setup-progress-track" aria-hidden="true"><span></span></div></div><div class="auth-heading"><div class="auth-brand" aria-hidden="true">H</div><div><div class="eyebrow" data-brand-name>HEXOSTUDIO</div><h1>${t("连接你的博客")}</h1></div></div><p>${t("管理员已就绪，连接博客后即可开始管理。")}</p>${connectionForm()}<button id="setup-logout" class="setup-exit">${t("退出登录")}</button></section>`;
   bindConnectionForm();
   DisplayPreferences.place();
   $('#setup-logout').onclick = () => { if (!state.connecting) $('#logout').click(); };
@@ -521,7 +521,7 @@ function showProjectModal() {
 }
 async function chooseDirectory() { const selected = await window.hexoStudio?.selectDirectory(); if (selected && $('#root-input')) $('#root-input').value = selected; }
 function localDateTime() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`; }
-function showNewPost(kind = 'post') { if (state.gitBusy) return toast(t("Git 操作正在进行，请稍候")); if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? t("草稿") : state.newKind === 'page' ? t("页面") : t("文章"); const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? t("source/页面路径/index.md") : 'source/_posts'; modal(`<h2 id="modal-title">${t`新建${label}`}</h2><p>${t`给${label}取个名字，HexoStudio 会在 ${folder} 中创建 Markdown 文件。`}</p><label for="new-title">${t`${label}标题`}</label><input id="new-title" placeholder="${t`写下${label}标题`}"><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="create-post">${t("创建并编辑")}</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
+function showNewPost(kind = 'post') { if (state.gitBusy) return toast(t("Git 操作正在进行，请稍候")); if (!state.root || (state.view === 'editor' && !canLeaveEditor()) || (state.view === 'config' && !canLeaveConfig())) return; state.newKind = ['post', 'draft', 'page'].includes(kind) ? kind : 'post'; const label = state.newKind === 'draft' ? t("草稿") : state.newKind === 'page' ? t("页面") : t("文章"); const folder = state.newKind === 'draft' ? 'source/_drafts' : state.newKind === 'page' ? t("source/页面路径/index.md") : 'source/_posts'; modal(`<h2 id="modal-title">${t`新建${label}`}</h2><p>${t`给${label}取个名字，将在 ${folder} 中创建 Markdown 文件。`}</p><label for="new-title">${t`${label}标题`}</label><input id="new-title" placeholder="${t`写下${label}标题`}"><div class="actions"><button class="secondary" id="cancel-modal">${t("取消")}</button><button class="primary" id="create-post">${t("创建并编辑")}</button></div>`); $('#new-title').focus(); $('#cancel-modal').onclick = closeModal; $('#create-post').onclick = createPost; $('#new-title').onkeydown = event => { if (event.key === 'Enter') createPost(); }; }
 async function createPost() {
   if (state.modalBusy) return;
   const title = $('#new-title').value.trim();
@@ -745,6 +745,7 @@ async function navigate(view) {
 }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
 $('#change-project').onclick = showProjectModal;
+$('#brand-settings').onclick = () => BrandUI.open();
 const releaseHome = 'https://github.com/Morainet/HexoStudio/releases';
 const loadedBuild = $('meta[name="hexostudio-build"]')?.content;
 function syncUpdateNotice() {
@@ -791,7 +792,7 @@ async function checkForUpdates() {
 function paintUpdateStatus() {
   const info = state.updateInfo || {};
   const desktop = state.mode === 'desktop';
-  const labels = { available: desktop ? '应用有新版本可安装' : '网站服务有新版可部署', current: desktop ? '当前应用没有更新的正式版' : '当前部署没有更新的正式版', 'no-release': '尚未发布正式版本', unavailable: '暂时无法检查更新，请稍后重试' };
+  const labels = { available: desktop ? '应用有新版本可安装' : '网站服务有新版可部署', current: desktop ? '当前应用没有更新的正式版' : '当前部署没有更新的正式版', 'no-release': '尚未发布正式版本', unavailable: '暂时无法检查更新，请稍后重试', disabled: '正式版本检查已关闭' };
   $('#update-status').textContent = t(labels[info.status] || '正在检查更新…');
   $('#update-status').dataset.tone = info.status || 'checking';
   const current = desktop ? info.currentVersion : state.deployedVersion || info.currentVersion;
@@ -801,9 +802,11 @@ function paintUpdateStatus() {
   const checked = info.checkedAt && new Date(info.checkedAt);
   $('#update-checked').textContent = checked && Number.isFinite(checked.getTime()) ? checked.toLocaleString(HexoI18n.language === 'en' ? 'en-US' : 'zh-CN') : '—';
   $('#update-release').innerHTML = t(desktop && info.status === 'available' ? '下载新版' : '查看发布记录') + icon('arrow');
-  $('#update-release').href = releaseHome;
+  const home = /^https:\/\/github\.com\/[a-zA-Z0-9-]+\/[a-zA-Z0-9_.-]+\/releases$/.test(info.releasesUrl || '') ? info.releasesUrl : releaseHome;
+  $('#update-release').classList.toggle('hidden', info.status === 'disabled');
+  $('#update-release').href = home;
   // The server preserves tags with or without a v prefix; restrict links to this repository.
-  if (info.releaseUrl?.startsWith(`${releaseHome}/tag/`)) $('#update-release').href = info.releaseUrl;
+  if (info.releaseUrl?.startsWith(`${home}/tag/`)) $('#update-release').href = info.releaseUrl;
 }
 $('#version-updates').onclick = async () => {
   const desktop = state.mode === 'desktop';
@@ -812,7 +815,7 @@ $('#version-updates').onclick = async () => {
     : state.cloud
       ? '将部署项目更新至新版源码，再在 Vercel、Netlify 或服务器重新部署。'
       : '源码运行请更新代码并重启；npm 安装请按发布说明升级软件包。';
-  if (!modal(`<div class="eyebrow">HEXOSTUDIO</div><h2 id="modal-title">${t(desktop ? "应用更新" : "网站更新")}</h2><div id="update-web-ready" class="update-status hidden"><p>${t("网站已更新，刷新后即可使用。")}</p><button id="update-refresh" class="primary small">${t("刷新页面")}</button></div><div id="update-status" class="update-status" role="status"></div><dl class="update-details"><div><dt>${t(desktop ? "已安装版本" : "当前部署版本")}</dt><dd id="update-current"></dd></div><div><dt>${t("最新正式版")}</dt><dd id="update-latest"></dd></div><div><dt>${t("检查时间")}</dt><dd id="update-checked"></dd></div></dl><p>${t(guidance)}</p><div class="actions update-actions"><button id="update-check" class="secondary">${t("检查更新")}</button><a id="update-release" href="${releaseHome}" target="_blank" rel="noopener noreferrer">${t("查看发布记录")}${icon('arrow')}</a></div><p class="update-note">${t(desktop ? "仅检查 GitHub 正式发布；结果缓存 1 分钟。更新前请备份配置。" : "网页更新由当前服务器检测；正式版本来自 GitHub，结果缓存 1 分钟。")}</p>`)) return;
+  if (!modal(`<div class="eyebrow" data-brand-name>HEXOSTUDIO</div><h2 id="modal-title">${t(desktop ? "应用更新" : "网站更新")}</h2><div id="update-web-ready" class="update-status hidden"><p>${t("网站已更新，刷新后即可使用。")}</p><button id="update-refresh" class="primary small">${t("刷新页面")}</button></div><div id="update-status" class="update-status" role="status"></div><dl class="update-details"><div><dt>${t(desktop ? "已安装版本" : "当前部署版本")}</dt><dd id="update-current"></dd></div><div><dt>${t("最新正式版")}</dt><dd id="update-latest"></dd></div><div><dt>${t("检查时间")}</dt><dd id="update-checked"></dd></div></dl><p>${t(guidance)}</p><div class="actions update-actions"><button id="update-check" class="secondary">${t("检查更新")}</button><a id="update-release" href="${releaseHome}" target="_blank" rel="noopener noreferrer">${t("查看发布记录")}${icon('arrow')}</a></div><p class="update-note">${t(desktop ? "仅检查 GitHub 正式发布；结果缓存 1 分钟。更新前请备份配置。" : "网页更新由当前服务器检测；正式版本来自 GitHub，结果缓存 1 分钟。")}</p>`)) return;
   const dialog = state.dialogVersion;
   const refresh = async () => {
     const button = $('#update-check');
@@ -1096,6 +1099,7 @@ document.addEventListener('hexostudio:language', () => {
 window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.modalBusy || state.busy || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
+    await BrandUI.load();
     const status = await api('auth/status');
     state.cloud = Boolean(status.cloud);
     if (!status.authenticated) return showAuth(status.configured);

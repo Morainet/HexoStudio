@@ -27,6 +27,7 @@
     "start": "node bin/hs.cjs start",
     "desktop": "electron desktop/main.cjs",
     "icons": "node scripts/generate-icons.cjs",
+    "oem:prepare": "node scripts/prepare-oem.cjs",
     "check": "node scripts/check.cjs",
     "test": "node --test",
     "test:package": "node scripts/verify-package.cjs",

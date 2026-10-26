@@ -69,6 +69,7 @@ Token 只通过环境变量配置，不提供命令行 Token 参数。使用 `--
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |
+| `HEXOSTUDIO_BRANDING` | 内置品牌 | 公开品牌 JSON 配置，见 [OEM 品牌化](branding.md) |
 | `HEXO_ROOT` | 已保存的项目目录 | 指定 Hexo 源码路径；设置后不能通过界面切换项目 |
 | `HEXOSTUDIO_PORT` | `4545` | 网页服务端口；桌面版使用自动分配的端口 |
 | `HEXOSTUDIO_HOST` | `127.0.0.1` | 网页服务监听地址 |

@@ -29,6 +29,7 @@ const DisplayPreferences = (() => {
     const destination = document.querySelector(workspace ? '#preferences-workspace' : '#preferences-home');
     const controls = document.querySelector('#display-preferences');
     if (controls.parentElement !== destination) destination.append(controls);
+    document.dispatchEvent(new CustomEvent('hexostudio:render'));
   }
   applyTheme(); applyLanguage();
   system.addEventListener('change', () => { if (preferences.theme === 'system') applyTheme(); });

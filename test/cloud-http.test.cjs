@@ -29,6 +29,9 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   assert.equal((await call('/api/version')).status,401);
   assert.deepEqual(await (await call('/api/auth/status')).json(),{cloud:true,configured:false,authenticated:false,username:null,csrf:null});
   assert.equal(updateChecks,0);
+  const originalBrand=await (await call('/api/branding')).json();
+  assert.equal(originalBrand.branding.name,'HexoStudio');
+  assert.equal((await call('/api/branding','PUT',{branding:{name:'Attacker'},revision:originalBrand.revision})).status,401);
   const input={username:'admin',password:'long-secure-password',setupKey:config.setupKey};
   assert.equal((await call('/api/auth/setup','POST',input,{Origin:'https://evil.example'})).status,403);
   assert.equal((await call('/api/auth/setup','POST',{...input,setupKey:'wrong'})).status,403);
@@ -37,6 +40,18 @@ test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local com
   assert.equal((await (await call('/api/auth/status')).json()).authenticated,true);
   assert.deepEqual(await (await call('/api/updates')).json(),{currentVersion:'0.8.0',status:'no-release'});
   assert.equal(updateChecks,1);
+  assert.equal((await call('/api/branding','PUT',{branding:{name:'Acme'},revision:originalBrand.revision},{'X-CSRF-Token':''})).status,403);
+  const brandSave=await call('/api/branding','PUT',{branding:{name:'Acme',releaseRepository:''},revision:originalBrand.revision});
+  assert.equal(brandSave.status,200);
+  const savedBrand=await brandSave.json();
+  const publicBrand=await (await call('/api/branding','GET',undefined,{Cookie:''})).json();
+  assert.deepEqual(publicBrand,savedBrand);
+  assert.deepEqual(Object.keys(publicBrand).sort(),['branding','revision']);
+  assert.equal(publicBrand.branding.name,'Acme');
+  assert.equal((await call('/api/branding','PUT',{branding:{name:'Old'},revision:originalBrand.revision})).status,409);
+  assert.equal((await call('/api/branding','PUT',{branding:{secret:'bad'},revision:savedBrand.revision})).status,400);
+  assert.equal((await call('/api/branding','DELETE',{revision:savedBrand.revision})).status,200);
+  assert.equal((await (await call('/api/branding')).json()).branding.name,'HexoStudio');
   const build = await call('/api/version');
   assert.equal(build.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await build.json(), require('../server/build-info.cjs').buildInfo());

@@ -53,6 +53,15 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
   const html = await fetch(`${url}/`);
   assert.equal(html.headers.get('cache-control'), 'no-cache');
   assert.match(await html.text(), new RegExp(`content="${info.buildId}"`));
+  const brand=await (await fetch(`${url}/api/branding`)).json();
+  const brandingWrite=headers=>fetch(`${url}/api/branding`,{method:'PUT',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({revision:brand.revision,branding:{name:'Local OEM',releaseRepository:''}})});
+  assert.equal((await brandingWrite({})).status,401);
+  assert.equal((await brandingWrite({Authorization:`Bearer ${token}`,Origin:'https://evil.example'})).status,403);
+  assert.equal((await brandingWrite({Authorization:`Bearer ${token}`})).status,200);
+  assert.equal(JSON.parse(fs.readFileSync(env.HEXOSTUDIO_SETTINGS,'utf8')).branding.name,'Local OEM');
+  const publicBrand=await (await fetch(`${url}/api/branding`)).json();
+  assert.deepEqual(Object.keys(publicBrand).sort(),['branding','revision']);
+  assert.equal((await (await fetch(`${url}/api/updates`,{headers:{Authorization:`Bearer ${token}`}})).json()).status,'disabled');
   const write = headers => fetch(`${url}/api/config`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ scope: 'theme:demo', content: 'overwritten: true\n' })

@@ -150,3 +150,7 @@ GitHub Token 需要所选仓库的 **Contents: Read and write** 权限；GitLab 
 部署模板及本地自动化验证不等于已在你的云账户完成上线。平台区域、数据库防火墙、分支权限与实际部署结果仍需在目标环境确认。
 
 平台参考：[Vercel Node.js Functions](https://vercel.com/docs/functions/runtimes/node-js)、[Netlify Functions 配置](https://docs.netlify.com/build/functions/configuration/)、[Render Blueprint](https://render.com/docs/blueprint-spec)、[Railway 配置](https://docs.railway.com/config-as-code/reference)。
+
+## OEM 品牌化
+
+登录后使用侧栏「品牌设置」自定义名称、Logo、登录文案、主题色和更新仓库；配置保存到共享数据库。也可用 `HEXOSTUDIO_BRANDING` 环境变量指定部署默认值，详见 [OEM 品牌化](branding.md)。

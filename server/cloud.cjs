@@ -1,9 +1,10 @@
+const { brandingRecord, brandingMutation } = require('./branding.cjs');
 const {cloudConfig,createCloudStore}=require('./cloud-store.cjs');
 const {CloudAuth,failure}=require('./cloud-auth.cjs');
 const {RemoteRepository}=require('./remote-repository.cjs');
 const {CloudContent}=require('./cloud-content.cjs');
 const {renderPreview}=require('./preview.cjs');
-function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkUpdates}={}){
+function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkBrandUpdates}={}){
   const auth=new CloudAuth(store,config);
   const send=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));};
   async function body(req){
@@ -18,6 +19,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
       if(!route.startsWith('/api/')&&!route.startsWith('/images/hexostudio/')){if(req.method!=='GET'&&req.method!=='HEAD')throw failure('不支持的请求方法',405);return staticFile(req,res,route);}
       if(req.method!=='GET' && req.headers.origin!==config.origin)throw failure('跨站请求被拒绝',403);
       const data=await store.read();const session=auth.session(data,req);
+      if(route==='/api/branding'&&req.method==='GET')return send(res,200,brandingRecord(data.branding));
       if(route==='/api/auth/status'&&req.method==='GET')return send(res,200,{cloud:true,configured:Boolean(data.admin),authenticated:Boolean(session),username:session?.username||null,csrf:session?.csrf||null});
       if(route==='/api/auth/setup'&&req.method==='POST'){
         if(data.admin)throw failure('管理员账号已创建',409);
@@ -27,8 +29,13 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         const input=await body(req),result=await auth.login(input);return send(res,200,{authenticated:true,username:input.username,csrf:result.csrf},{'Set-Cookie':result.cookie});
       }
       auth.require(data,req,req.method!=='GET');
+      if(route==='/api/branding'&&['PUT','DELETE'].includes(req.method)){
+        const input=await body(req);
+        const result=await store.update(current=>{auth.require(current,req,true);current.branding=brandingMutation(current.branding,input,req.method==='DELETE');return brandingRecord(current.branding);});
+        return send(res,200,result);
+      }
       if(route==='/api/version'&&req.method==='GET')return send(res,200,require('./build-info.cjs').buildInfo());
-      if(route==='/api/updates'&&req.method==='GET')return send(res,200,await checkUpdates());
+      if(route==='/api/updates'&&req.method==='GET')return send(res,200,await checkUpdates(brandingRecord(data.branding).branding));
       if(route==='/api/auth/logout'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.logout(req)});
       if(route==='/api/auth/password'&&req.method==='POST')return send(res,200,{ok:true},{'Set-Cookie':await auth.password(req,await body(req))});
       if(route.startsWith('/api/auth/storage'))throw failure('云端数据库由部署环境变量管理',409);

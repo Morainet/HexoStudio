@@ -1,5 +1,10 @@
 const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs');
+const { deploymentBranding } = require('../server/branding.cjs');
+let brand = { name: 'HexoStudio' };
+const oemPackage = fs.existsSync(path.join(process.resourcesPath, 'oem-branding.json'));
+if (oemPackage && !process.env.HEXOSTUDIO_SETTINGS) process.env.HEXOSTUDIO_SETTINGS = path.join(app.getPath('userData'), 'settings.json');
 
 let server;
 let window;
@@ -9,15 +14,17 @@ ipcMain.handle('select-directory', async event => {
   return result.canceled ? null : result.filePaths[0];
 });
 async function createWindow() {
+  brand = deploymentBranding();
   process.env.HEXOSTUDIO_DESKTOP = '1';
   const { startServer } = require('../server/index.cjs');
   const running = await startServer(0, '127.0.0.1');
   server = running.server;
-  const applicationIcon = path.join(__dirname, 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  const oemIcon = path.join(process.resourcesPath, 'oem-icon.png');
+  const applicationIcon = oemPackage && fs.existsSync(oemIcon) ? oemIcon : path.join(__dirname, 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   if (process.platform === 'darwin') app.dock.setIcon(applicationIcon);
   window = new BrowserWindow({
     width: 1320, height: 850, minWidth: 900, minHeight: 620,
-    title: 'HexoStudio', backgroundColor: '#f7f8fb',
+    title: brand.name, backgroundColor: '#f7f8fb',
     icon: applicationIcon,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') }
   });
@@ -28,6 +35,6 @@ async function createWindow() {
   window.webContents.on('will-navigate', (event, url) => { if (!url.startsWith(running.url + '/')) event.preventDefault(); });
   await window.loadURL(running.url);
 }
-app.whenReady().then(createWindow).catch(error => dialog.showErrorBox('HexoStudio 启动失败', error.message));
+app.whenReady().then(createWindow).catch(error => dialog.showErrorBox(`${brand.name} 启动失败`, error.message));
 app.on('window-all-closed', () => { server?.close(); if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

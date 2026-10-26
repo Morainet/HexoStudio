@@ -1,0 +1,19 @@
+{
+  "branding": {
+    "name": "Aurora Studio",
+    "tagline": "我的创作空间",
+    "loginTitle": "欢迎回来",
+    "loginDescription": "登录后继续创作。",
+    "logo": "",
+    "favicon": "",
+    "accentLight": "#6d28d9",
+    "accentDark": "#c4b5fd",
+    "footerText": "© Aurora Studio",
+    "helpUrl": "",
+    "releaseRepository": ""
+  },
+  "desktop": {
+    "productName": "Aurora Studio",
+    "appId": "com.example.aurorastudio"
+  }
+}

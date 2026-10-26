@@ -521,3 +521,32 @@ select:disabled { cursor: not-allowed; opacity: .55; }
 .web-update-notice button { flex-shrink: 0; }
 #update-web-ready p { margin-bottom: 12px; color: inherit; }
 @media (max-width: 700px) { .web-update-notice { margin: 12px 16px 0; flex-wrap: wrap; } }
+
+/* OEM colors only override the default palette when explicitly customized. */
+:root[data-oem-colors="true"] { --accent: var(--oem-light); --on-brand: var(--oem-light-ink); --brand: var(--accent); --brand-dark: color-mix(in srgb, var(--accent), black 14%); --brand-soft: color-mix(in srgb, var(--accent) 10%, var(--surface)); --active: var(--brand-soft); --active-ink: var(--accent); --focus: var(--accent); --focus-ring: var(--brand-soft); }
+:root[data-theme="dark"][data-oem-colors="true"] { --accent: var(--oem-dark); --on-brand: var(--oem-dark-ink); --brand-dark: color-mix(in srgb, var(--accent), white 14%); --brand-soft: color-mix(in srgb, var(--accent) 15%, var(--surface)); }
+.custom-brand-logo { background: transparent; }
+.custom-brand-logo img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.brand > div, .auth-heading > div:last-child { min-width: 0; overflow-wrap: anywhere; }
+.brand [data-brand-name] { overflow-wrap: anywhere; }
+.brand-footer { display: block; padding: 6px 10px; color: var(--subtle); font-size: 10px; overflow-wrap: anywhere; }
+.brand-login-footer { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; color: var(--subtle); font-size: 11px; }
+.brand-login-footer:has(:not(.hidden)) { margin-top: 18px; }
+[data-brand-help] { color: var(--muted); text-decoration: none; }
+.brand-preview { display: flex; align-items: center; gap: 12px; padding: 16px; margin: 16px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--raised); }
+#brand-preview-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 8px; color: var(--on-brand); background: var(--brand); flex-shrink: 0; font-size: 24px; font-weight: 600; }
+#brand-preview-mark img { width: 100%; height: 100%; object-fit: contain; border-radius: inherit; }
+.brand-preview > div { min-width: 0; overflow-wrap: anywhere; }
+.brand-preview small { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.brand-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#branding-form input { margin-top: 6px; margin-bottom: 6px; }
+#branding-form input[type="color"] { padding: 4px; cursor: pointer; }
+.brand-image-input { display: flex; gap: 8px; align-items: center; }
+.brand-image-input > input { flex: 1; min-width: 0; }
+.brand-image-input > button { flex-shrink: 0; }
+.modal .brand-tip { font-size: 11px; margin: 8px 0 16px; }
+.brand-more { border-top: 1px solid var(--line); padding-top: 12px; }
+.brand-more summary { cursor: pointer; color: var(--muted); font-size: 12px; margin-bottom: 12px; }
+#branding-form .actions { margin-top: 20px; }
+#brand-reset { width: auto; margin-inline-end: auto; }
+@media (max-width: 480px) { .brand-fields { grid-template-columns: 1fr; gap: 0; } }

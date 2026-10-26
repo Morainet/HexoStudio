@@ -1,6 +1,4 @@
 const { version: currentVersion } = require('../package.json');
-const releasesUrl = 'https://github.com/Morainet/HexoStudio/releases';
-const apiUrl = 'https://api.github.com/repos/Morainet/HexoStudio/releases/latest';
 
 function parseVersion(value) {
   const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(value);
@@ -16,7 +14,10 @@ function isNewerRelease(latest, current) {
 }
 
 // Shared per process: opening multiple tabs must not exhaust GitHub's public API quota.
-function createUpdateChecker({ fetchImpl = globalThis.fetch, now = Date.now, version = currentVersion } = {}) {
+function createUpdateChecker({ fetchImpl = globalThis.fetch, now = Date.now, version = currentVersion, repository = 'Morainet/HexoStudio' } = {}) {
+  require('./branding.cjs').validateBranding({ releaseRepository: repository });
+  const releasesUrl = `https://github.com/${repository}/releases`;
+  const apiUrl = `https://api.github.com/repos/${repository}/releases/latest`;
   let cached, expires = 0, pending;
   return function checkUpdates() {
     if (cached && now() < expires) return Promise.resolve(cached);
@@ -47,4 +48,15 @@ function createUpdateChecker({ fetchImpl = globalThis.fetch, now = Date.now, ver
   };
 }
 
-module.exports = { createUpdateChecker, isNewerRelease, checkUpdates: createUpdateChecker() };
+const checkers = new Map();
+function checkBrandUpdates(branding) {
+  const repository = branding.releaseRepository;
+  if (!repository) return Promise.resolve({ currentVersion, status: 'disabled', checkedAt: null });
+  if (!checkers.has(repository)) {
+    if (checkers.size >= 8) checkers.delete(checkers.keys().next().value);
+    checkers.set(repository, createUpdateChecker({ repository }));
+  }
+  return checkers.get(repository)();
+}
+
+module.exports = { checkBrandUpdates, createUpdateChecker, isNewerRelease, checkUpdates: createUpdateChecker() };
