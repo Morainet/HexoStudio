@@ -8,7 +8,7 @@
 
 **网页 · macOS · Windows** ｜ **本机目录 · GitHub · GitLab** ｜ **深浅色 · 中英文**
 
-[快速开始](#快速开始) · [云端部署](docs/cloud-deployment.md) · [使用指南](docs/guide.md) · [本地配置](docs/configuration.md) · [OEM 品牌化](docs/branding.md) · [开发与发布](docs/development.md)
+[更新记录](CHANGELOG.md) · [快速开始](#快速开始) · [云端部署](docs/cloud-deployment.md) · [使用指南](docs/guide.md) · [本地配置](docs/configuration.md) · [OEM 品牌化](docs/branding.md) · [开发与发布](docs/development.md)
 
 ![HexoStudio 深色工作台](https://raw.githubusercontent.com/Morainet/HexoStudio/main/docs/images/workspace-dark.png)
 
@@ -54,7 +54,7 @@ npm run desktop
 CLI 已实现，尚未首次发布到 npm。当前可从源码运行 `npm run web -- --port 4546`，或安装 [CI 构建产物](https://github.com/Morainet/HexoStudio/actions)中的 `.tgz`：
 
 ```bash
-npm install -g ./hexostudio-0.8.0.tgz
+npm install -g ./hexostudio-1.0.0.tgz
 hs start
 ```
 
@@ -94,7 +94,7 @@ hs start
 本机构建产物位于 `dist/`。GitHub Actions 提供：
 
 - **CI**：运行 Node.js 22 / 24 检查、测试与漏洞扫描，在 Linux / Windows 验证 npm 安装包；另有三种云端数据库集成测试、Netlify 函数产物验证和 Docker 构建。
-- **Desktop builds**：手动构建 macOS Apple Silicon / Intel、Windows x64 安装包；推送匹配版本的 `v*` 标签时创建 Release 草稿。
+- **Release builds**：手动构建 macOS Apple Silicon / Intel、Windows x64 安装包；推送匹配版本的 `v*` 标签时创建 Release 草稿。
 
 [查看 Actions](https://github.com/Morainet/HexoStudio/actions) · [构建与发布说明](https://github.com/Morainet/HexoStudio/blob/main/docs/development.md#github-actions-自动化)
 

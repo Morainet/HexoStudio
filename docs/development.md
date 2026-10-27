@@ -26,18 +26,18 @@
 | 工作流 | 触发方式 | 执行内容 |
 | --- | --- | --- |
 | CI | 分支推送、Pull Request、手动运行 | Node.js 22 / 24 检查与测试、依赖扫描；Linux / Windows npm 包安装验证 |
-| Desktop builds | 推送 `v*` 标签、手动运行 | 先检查与测试，再构建 macOS Apple Silicon / Intel、Windows x64 安装包 |
+| Release builds | 推送 `v*` 标签、手动运行 | 先检查与测试，再构建 macOS Apple Silicon / Intel、Windows x64 安装包 |
 
-**下载测试安装包：** 选择 `Desktop builds` → `Run workflow`。完成后，在该次运行的 Artifacts 中下载对应平台的文件，保留 14 天。手动运行只生成构建产物。
+**下载测试安装包：** 选择 `Release builds` → `Run workflow`。完成后，在该次运行的 Artifacts 中下载对应平台的文件，保留 14 天。手动运行只生成构建产物。
 
-**创建版本发布：** 先更新 `package.json` 与 `package-lock.json` 的版本并提交，确保检查通过，再推送对应标签。例如当前 `0.8.0` 版本：
+**创建版本发布：** 先更新 `package.json` 与 `package-lock.json` 的版本并提交，确保检查通过，再推送对应标签。例如当前 `1.0.0` 版本：
 
 ```bash
-git tag v0.8.0
-git push origin v0.8.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
-标签必须与 `package.json` 的版本一致。所有平台构建成功后，工作流会创建 GitHub Release **草稿**，上传 DMG、ZIP、Windows 安装版、便携版和 `SHA256SUMS.txt`。检查产物与发布说明后，在 Releases 页面手动发布。重新运行可以更新草稿附件，已发布的 Release 不会被覆盖。
+标签必须与 `package.json` 的版本一致。所有平台构建成功后，工作流会创建 GitHub Release **草稿**，上传 DMG、ZIP、Windows 安装版、便携版、已验证的 npm `.tgz` 和 `SHA256SUMS.txt`。检查产物与发布说明后，在 Releases 页面手动发布。重新运行可以更新草稿附件，已发布的 Release 不会被覆盖。
 
 工作流使用 GitHub 自动提供的 `GITHUB_TOKEN`，无需配置个人 Token 或博客数据库凭据；只有创建 Release 的任务拥有仓库内容写权限。如果仓库禁用了 Actions，需要先在仓库设置中启用。
 

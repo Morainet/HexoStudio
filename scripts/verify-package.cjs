@@ -24,11 +24,11 @@ async function verify() {
   try {
     const [packed] = JSON.parse(run(['pack', '--json', '--ignore-scripts', '--pack-destination', temporary], root));
     const names = packed.files.map(file => file.path);
-    for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'public/favicon.svg', 'public/favicon.ico', 'public/favicon-32.png', 'public/icon-192.png', 'public/apple-touch-icon.png', 'LICENSE', 'README.md', 'package.json']) {
+    for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'public/favicon.svg', 'public/favicon.ico', 'public/favicon-32.png', 'public/icon-192.png', 'public/apple-touch-icon.png', 'LICENSE', 'README.md', 'CHANGELOG.md', 'package.json']) {
       assert.ok(names.includes(required), `Missing package file: ${required}`);
     }
     for (const name of names) {
-      assert.match(name, /^(?:bin\/[^/]+\.cjs|server\/[^/]+\.cjs|public\/[^/]+\.(?:html|js|css|png|ico|svg)|docs\/[^/]+\.md|README\.md|LICENSE|package\.json)$/,
+      assert.match(name, /^(?:bin\/[^/]+\.cjs|server\/[^/]+\.cjs|public\/[^/]+\.(?:html|js|css|png|ico|svg)|docs\/[^/]+\.md|README\.md|CHANGELOG\.md|LICENSE|package\.json)$/,
         `Unexpected package file: ${name}`);
     }
     const installation = path.join(temporary, 'installation');

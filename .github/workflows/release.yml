@@ -1,4 +1,4 @@
-name: Desktop builds
+name: Release builds
 
 on:
   push:
@@ -34,6 +34,12 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: node scripts/check-release.cjs "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: npm-release-package
+          path: dist/npm/*.tgz
+          if-no-files-found: error
+          retention-days: 14
 
   build:
     needs: verify
@@ -87,14 +93,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
           pattern: desktop-*
           merge-multiple: true
           path: artifacts
+      - uses: actions/download-artifact@v8
+        with:
+          name: npm-release-package
+          path: artifacts
       - name: Generate checksums
         working-directory: artifacts
-        run: sha256sum HexoStudio-* > SHA256SUMS.txt
+        run: sha256sum HexoStudio-* hexostudio-*.tgz > SHA256SUMS.txt
       - name: Create or update draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -109,6 +120,6 @@ jobs:
               exit 1
             fi
           else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --generate-notes --title "$RELEASE_TAG"
+            gh release create "$RELEASE_TAG" --verify-tag --draft --notes-file CHANGELOG.md --title "HexoStudio $RELEASE_TAG"
           fi
           gh release upload "$RELEASE_TAG" artifacts/* --clobber

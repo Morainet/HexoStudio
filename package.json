@@ -1,6 +1,6 @@
 {
   "name": "hexostudio",
-  "version": "0.8.0",
+  "version": "1.0.0",
   "description": "A local, cloud and desktop studio for Hexo blogs",
   "license": "MIT",
   "repository": {
@@ -14,7 +14,7 @@
   "bin": {
     "hs": "bin/hs.cjs"
   },
-  "files": ["bin/", "server/", "public/", "docs/*.md", "README.md", "LICENSE"],
+  "files": ["bin/", "server/", "public/", "docs/*.md", "README.md", "CHANGELOG.md", "LICENSE"],
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
