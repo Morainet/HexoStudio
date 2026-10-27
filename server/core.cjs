@@ -113,7 +113,8 @@ function slugify(value) {
   return slug || `post-${Date.now()}`;
 }
 
-function createPost(root, title, localDate, kind = 'post') {
+function createPost(root, title, localDate, kind = 'post', initialContent) {
+  const generated = require('./ai.cjs').draftBody(initialContent, kind);
   if (typeof title !== 'string' || !title.trim()) throw new Error('请输入文章标题');
   articleDir(root, kind, true);
   const base = slugify(title);
@@ -135,7 +136,7 @@ function createPost(root, title, localDate, kind = 'post') {
   while (fs.existsSync(safeArticlePath(root, name, kind, true))) name = `${base}-${index++}.md`;
   const date = typeof localDate === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(localDate)
     ? localDate : new Date().toISOString().replace('T', ' ').slice(0, 19);
-  const content = `---\ntitle: ${JSON.stringify(title.trim())}\n${kind === 'post' ? `date: ${date}\n` : ''}tags: []\ncategories: []\n---\n\n`;
+  const content = `---\ntitle: ${JSON.stringify(title.trim())}\n${kind === 'post' ? `date: ${date}\n` : ''}tags: []\ncategories: []\n---\n\n${generated}`;
   fs.writeFileSync(safeArticlePath(root, name, kind, true), content, { flag: 'wx' });
   return { path: name, kind, content };
 }

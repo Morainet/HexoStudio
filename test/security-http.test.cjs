@@ -62,6 +62,15 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
   const publicBrand=await (await fetch(`${url}/api/branding`)).json();
   assert.deepEqual(Object.keys(publicBrand).sort(),['branding','revision']);
   assert.equal((await (await fetch(`${url}/api/updates`,{headers:{Authorization:`Bearer ${token}`}})).json()).status,'disabled');
+  assert.equal((await fetch(`${url}/api/ai/settings`)).status,401);
+  const aiHeaders={Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
+  const initialAI=await (await fetch(`${url}/api/ai/settings`,{headers:aiHeaders})).json();
+  const aiInput={...initialAI,baseUrl:'https://provider.example/v1',model:'test-model',apiKey:'private-test-ai-key'};
+  assert.equal((await fetch(`${url}/api/ai/settings`,{method:'PUT',headers:{...aiHeaders,Origin:'https://evil.example'},body:JSON.stringify(aiInput)})).status,403);
+  const savedAI=await fetch(`${url}/api/ai/settings`,{method:'PUT',headers:aiHeaders,body:JSON.stringify(aiInput)});
+  assert.equal(savedAI.status,200);assert.equal(JSON.stringify(await savedAI.json()).includes(aiInput.apiKey),false);
+  assert.equal(JSON.parse(fs.readFileSync(env.HEXOSTUDIO_SETTINGS,'utf8')).ai.apiKey,aiInput.apiKey);
+  if(process.platform!=='win32') assert.equal(fs.statSync(env.HEXOSTUDIO_SETTINGS).mode&0o777,0o600);
   const write = headers => fetch(`${url}/api/config`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ scope: 'theme:demo', content: 'overwritten: true\n' })

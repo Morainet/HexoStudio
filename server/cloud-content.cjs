@@ -44,9 +44,9 @@ class CloudContent {
   }
   async create(data){
     if(typeof data.title!=='string'||!data.title.trim()||data.title.length>300)throw failure('文章标题无效');
-    const kind=data.kind||'post',snapshot=await this.repo.snapshot(),base=slug(data.title);let name;
+    const kind=data.kind||'post',generated=require('./ai.cjs').draftBody(data.content,kind),snapshot=await this.repo.snapshot(),base=slug(data.title);let name;
     for(let i=0;i<1000;i++){const stem=base+(i?`-${i+1}`:'');name=kind==='page'?`${stem}/index.md`:`${stem}.md`;if(!snapshot.entries.some(x=>x.path===this.repo.path(articlePath(name,kind))))break;if(i===999)throw failure('同名文件过多');}
-    const content=`---\ntitle: ${JSON.stringify(data.title.trim())}\n${kind==='draft'?'':`date: ${date(data.localDate)}\n`}tags: []\ncategories: []\n---\n\n`;
+    const content=`---\ntitle: ${JSON.stringify(data.title.trim())}\n${kind==='draft'?'':`date: ${date(data.localDate)}\n`}tags: []\ncategories: []\n---\n\n${generated}`;
     await this.repo.commit(snapshot,[{path:this.repo.path(articlePath(name,kind)),expected:null,content}],`Create ${kind}: ${data.title.trim()}`);
     return {path:name,kind,content};
   }

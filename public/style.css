@@ -679,3 +679,20 @@ select:disabled { cursor: not-allowed; opacity: .55; }
   .list-filters { flex-wrap: wrap; }
   .list-filters .filter { flex-basis: 100%; }
 }
+
+/* AI writing: requirements first, editable results before applying. */
+.modal:has(.ai-workspace) { width: min(760px, 100%); }
+.ai-workspace .eyebrow { display: flex; align-items: center; gap: 8px; color: var(--accent); margin-bottom: 10px; }
+.ai-options { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.ai-options select { width: 100%; }
+.ai-input, .ai-output { display: block; width: 100%; min-height: 120px; padding: 12px; border: 1px solid var(--control-border); border-radius: 7px; background: var(--surface); color: var(--ink); resize: vertical; font-size: 13px; line-height: 1.8; margin-bottom: 14px; }
+.ai-output { min-height: 260px; max-height: 50dvh; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.modal .ai-note { margin: 10px 0 16px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ai-result { border-top: 1px solid var(--line); padding-top: 22px; margin-top: 24px; }
+#ai-truncated { color: var(--warning); }
+@media (max-width: 700px) {
+  .ai-options { gap: 12px; }
+  .ai-input, .ai-output { font-size: 16px; }
+  .ai-workspace .actions > button { flex: 1; min-height: 44px; }
+}
+@media (max-width: 560px) { .ai-options { grid-template-columns: 1fr; gap: 8px; } }

@@ -8,6 +8,7 @@ const { renderPreview } = require('./preview.cjs');
 const assets = require('./assets.cjs');
 const git = require('./git.cjs');
 const { brandingRecord, brandingMutation } = require('./branding.cjs');
+const ai = require('./ai.cjs');
 const { AuthManager } = require('./auth.cjs');
 
 const publicDir = path.join(__dirname, '..', 'public');
@@ -75,7 +76,7 @@ function sameOrigin(req) {
 }
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
+  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
   if (!Object.hasOwn(types, name)) return send(res, 404, { error: '未找到页面' });
   res.writeHead(200, {
     'Content-Type': types[name].startsWith('text/') ? `${types[name]}; charset=utf-8` : types[name],
@@ -130,6 +131,19 @@ async function handle(req, res) {
     }
     if (!authorized(req)) return send(res, 401, { error: '请先登录' });
     if (req.method !== 'GET' && !tokenAuthorized(req)) auth.checkCsrf(req);
+    if (url.pathname === '/api/ai/settings') {
+      if (req.method === 'GET') return send(res, 200, ai.record(loadSettings().ai));
+      if (['PUT', 'DELETE'].includes(req.method)) {
+        const input = await body(req), settings = loadSettings();
+        settings.ai = ai.mutation(settings.ai, input, req.method === 'DELETE');
+        saveSettings(settings); return send(res, 200, ai.record(settings.ai));
+      }
+    }
+    if (url.pathname === '/api/ai/generate' && req.method === 'POST') {
+      const input = await body(req);
+      const store = { async update(action) { const settings = loadSettings(), result = action(settings); saveSettings(settings); return result; } };
+      return send(res, 200, await ai.generate(store, input));
+    }
     if (['PUT', 'DELETE'].includes(req.method) && url.pathname === '/api/branding') {
       const input = await body(req), settings = loadSettings();
       settings.branding = brandingMutation(settings.branding, input, req.method === 'DELETE');
@@ -203,7 +217,7 @@ async function handle(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/posts') return send(res, 200, { posts: core.listPosts(root, url.searchParams.get('kind') || 'post') });
     if (req.method === 'POST' && url.pathname === '/api/posts') {
       const data = await body(req);
-      return send(res, 201, core.createPost(root, data.title, data.localDate, data.kind || 'post'));
+      return send(res, 201, core.createPost(root, data.title, data.localDate, data.kind || 'post', data.content));
     }
     if (url.pathname === '/api/post') {
       const name = url.searchParams.get('path');

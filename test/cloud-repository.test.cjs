@@ -101,3 +101,14 @@ test('cloud content covers articles, drafts, pages, configs, images and optimist
   await content.remove(published.path,'post',published.modified);
   assert.equal((await content.list('post')).length,0);
 });
+
+test('AI draft creation includes reviewed prose in a single remote commit and cannot publish it',async()=>{
+  const writes=[];
+  const repo={path:name=>name,snapshot:async()=>({entries:[]}),commit:async(_snapshot,changes)=>writes.push(changes)};
+  const content=new CloudContent(repo);
+  const draft=await content.create({title:'Reviewed AI article',kind:'draft',content:'# A reviewed draft'});
+  assert.equal(writes.length,1);assert.match(writes[0][0].path,/^source\/_drafts\//);
+  assert.match(draft.content,/---\n\n# A reviewed draft/);
+  await assert.rejects(content.create({title:'Unreviewed',kind:'post',content:'Never publish automatically'}),/草稿/);
+  assert.equal(writes.length,1);
+});

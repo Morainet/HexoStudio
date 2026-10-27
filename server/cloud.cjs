@@ -4,7 +4,8 @@ const {CloudAuth,failure}=require('./cloud-auth.cjs');
 const {RemoteRepository}=require('./remote-repository.cjs');
 const {CloudContent}=require('./cloud-content.cjs');
 const {renderPreview}=require('./preview.cjs');
-function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkBrandUpdates}={}){
+const ai=require('./ai.cjs');
+function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkBrandUpdates,aiTransport=ai.completion}={}){
   const auth=new CloudAuth(store,config);
   const allowedOrigins=new Set(config.origins || [config.origin]);
   const send=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));};
@@ -30,6 +31,15 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         const input=await body(req),result=await auth.login(input);return send(res,200,{authenticated:true,username:input.username,csrf:result.csrf},{'Set-Cookie':result.cookie});
       }
       auth.require(data,req,req.method!=='GET');
+      if(route==='/api/ai/settings') {
+        if(req.method==='GET')return send(res,200,ai.record(data.ai));
+        if(['PUT','DELETE'].includes(req.method)) {
+          const input=await body(req);
+          const result=await store.update(current=>{auth.require(current,req,true);current.ai=ai.mutation(current.ai,input,req.method==='DELETE');return ai.record(current.ai);});
+          return send(res,200,result);
+        }
+      }
+      if(route==='/api/ai/generate'&&req.method==='POST')return send(res,200,await ai.generate(store,await body(req),current=>auth.require(current,req,true),aiTransport));
       if(route==='/api/branding'&&['PUT','DELETE'].includes(req.method)){
         const input=await body(req);
         const result=await store.update(current=>{auth.require(current,req,true);current.branding=brandingMutation(current.branding,input,req.method==='DELETE');return brandingRecord(current.branding);});

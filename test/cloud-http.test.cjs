@@ -122,3 +122,32 @@ test('multiple production origins can log in while foreign origins and missing C
     assert.equal((await call('/api/auth/logout',origin,{},{...headers,'X-CSRF-Token':csrf})).status,200);
   }
 });
+
+test('AI settings and generation require login, trusted origin and CSRF, without exposing keys',async t=>{
+  const config={origin:'https://studio.example',secret:'ab'.repeat(32),setupKey:'bootstrap-'.repeat(5)};
+  const data={}; const store={async read(){return structuredClone(data);},async update(action){return action(data);}};
+  let requests=0;
+  const handler=createCloudHandler({config,store,aiTransport:async(config,messages)=>{requests++;assert.equal(config.apiKey,'test-ai-key');return {content:'# Generated draft',truncated:false};}});
+  const server=http.createServer((req,res)=>handler(req,res,()=>res.end()));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base=`http://127.0.0.1:${server.address().port}`;let cookie='',csrf='';
+  const call=(route,method='GET',body,headers={})=>fetch(base+route,{method,headers:{Origin:config.origin,Cookie:cookie,'X-CSRF-Token':csrf,'Content-Type':'application/json',...headers},body:body===undefined?undefined:JSON.stringify(body)});
+  assert.equal((await call('/api/ai/settings')).status,401);
+  assert.equal((await call('/api/ai/generate','POST',{})).status,401);
+  const setup=await call('/api/auth/setup','POST',{username:'admin',password:'test-password',setupKey:config.setupKey});
+  cookie=setup.headers.get('set-cookie').split(';')[0];csrf=(await setup.json()).csrf;
+  const initial=await (await call('/api/ai/settings')).json();
+  const settings={...initial,baseUrl:'https://provider.example/v1',model:'writer-model',apiKey:'test-ai-key'};
+  assert.equal((await call('/api/ai/settings','PUT',settings,{'X-CSRF-Token':''})).status,403);
+  assert.equal((await call('/api/ai/settings','PUT',settings,{Origin:'https://evil.example'})).status,403);
+  const response=await call('/api/ai/settings','PUT',settings);assert.equal(response.status,200);
+  const saved=await response.json();assert.equal(saved.hasKey,true);assert.equal(JSON.stringify(saved).includes('test-ai-key'),false);
+  const input={revision:saved.revision,action:'article',prompt:'Write about testing',text:'',language:'en'};
+  assert.equal((await call('/api/ai/generate','POST',input,{'X-CSRF-Token':''})).status,403);
+  assert.equal((await call('/api/ai/generate','POST',input,{Origin:'https://evil.example'})).status,403);
+  const result=await call('/api/ai/generate','POST',input);assert.equal(result.status,200);
+  assert.equal((await result.json()).content,'# Generated draft');assert.equal(requests,1);
+  assert.equal(JSON.stringify(await (await call('/api/branding')).json()).includes('test-ai-key'),false);
+  assert.equal((await call('/api/ai/settings','DELETE',{revision:saved.revision})).status,200);
+  assert.equal((await call('/api/ai/generate','POST',input)).status,409);
+});
