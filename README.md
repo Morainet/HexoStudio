@@ -62,6 +62,8 @@ hs start
 
 运行 `hs --help` 查看端口、监听地址、博客目录和设置文件选项。
 
+后台运行可使用 `hs start -d`，通过 `hs status`、`hs stop`、`hs restart` 管理，`hs logs` 查看日志，`hs open` 打开工作台。完整命令说明见[命令行配置](docs/configuration.md#命令行启动)。
+
 遇到配置问题可运行 `hs doctor` 检查环境；`hs doctor --json` 输出机器可读报告。
 
 ### 首次配置

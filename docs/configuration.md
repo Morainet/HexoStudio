@@ -40,6 +40,14 @@ hs --help
 hs --version
 hs doctor
 hs doctor --settings ./studio-settings.json --json
+hs start -d --port 4546
+hs status --json
+hs open
+hs restart
+hs logs --lines 100
+hs stop
+hs config path
+hs help start
 ```
 
 | 参数 | 作用 |
@@ -48,12 +56,34 @@ hs doctor --settings ./studio-settings.json --json
 | `--host` | 监听 IP 或 localhost，默认 127.0.0.1 |
 | `--root` | 固定 Hexo 源码目录；省略时可在界面中选择本机或远端项目 |
 | `--settings` | 设置文件位置，默认 `~/.hexostudio.json` |
+| `--background` / `-d` | 本机模式下后台启动，由 `hs stop` 管理 |
+| `--open` | `start` / `restart` 成功后打开默认浏览器 |
 | `--help` / `-h` | 显示帮助 |
 | `--version` / `-v` | 显示版本 |
 
 命令行参数优先于对应环境变量；相对路径以运行命令时的目录为基准。端口占用时会报错，可指定其他端口。按 Ctrl+C 停止服务。博客、管理员配置和凭据不会写入 npm 安装目录，更新 npm 包会保留这些外部数据。
 
 启动时会显示访问地址、版本和设置文件位置。设置文件损坏或不是 JSON 对象时会直接退出，修复后再启动；不会自动覆盖现有配置。路径支持 `~`，例如 `--settings "~/studio/settings.json"`。
+
+### 后台服务管理
+
+`hs start -d` 启动后可关闭终端。`hs status` 查看地址、进程、版本与日志位置，`hs open` 打开工作台，`hs restart` 按原来的主机地址、端口参数和博客目录重启，`hs stop` 停止。重复启动同一实例会返回现有服务；需要更改端口或博客目录时，先停止，再带新参数启动。
+
+这些命令按 `--settings` 选择实例。使用自定义设置文件启动后，后续管理命令也要指定相同文件，例如：
+
+```bash
+hs start -d --settings ./studio.json --port 4546
+hs status --settings ./studio.json
+hs stop --settings ./studio.json
+```
+
+只管理 `hs start -d` 创建的后台服务；前台 `hs start` 使用 Ctrl+C 停止。后台模式不提供开机自启或异常自动拉起。云端服务继续使用平台或进程管理器运行前台命令。
+
+运行记录与日志位于设置文件所在目录的 `.hexostudio-runtime/` 下，各实例独立。macOS / Linux 的运行目录限制为当前用户访问，控制凭据文件权限为 `0600`。停止时通过本机专用接口验证服务身份，不会根据磁盘记录的 PID 直接结束其他程序。
+
+`hs logs --lines 100` 查看最近日志，默认 50 行，最多 1000 行 / 256 KB。`hs config path` 只输出设置文件路径，账号、数据库与 AI 配置仍在网页中管理。
+
+`hs status --json` 供脚本读取；退出码为 `0`（运行）、`1`（未运行）、`2`（记录中的服务无法验证或连接）。`hs stop` 在服务已停止时也会成功。运行 `hs <命令> --help` 查看该命令的参数，不支持的参数会直接报错。
 
 ### 环境诊断
 

@@ -45,6 +45,15 @@ async function verify() {
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
     const fields = require(path.join(installed, 'server/article-fields.cjs'));
     assert.equal(fields.inspect('---\ncover: /cover.jpg\n---\nBody')[0].value, '/cover.jpg');
+    const service = require(path.join(installed, 'server/cli-service.cjs'));
+    const managedSettings = path.join(runtime, 'managed.json');
+    try {
+      const started = run(['exec', '--offline', '--no', '--', 'hs', 'start', '-d', '--port', '0', '--settings', managedSettings], installation);
+      assert.match(started, /Background service started/);
+      const status = JSON.parse(run(['exec', '--offline', '--no', '--', 'hs', 'status', '--json', '--settings', managedSettings], installation));
+      assert.equal(status.status, 'running');
+      assert.equal((await fetch(status.url)).status, 200);
+    } finally { await service.stop(managedSettings); }
     const version = run(['exec', '--offline', '--no', '--', 'hs', '--version'], installation).trim();
     assert.equal(version, manifest.version);
     const diagnostics = JSON.parse(run(['exec', '--offline', '--no', '--', 'hs', 'doctor', '--json', '--settings', path.join(runtime, 'settings.json')], installation));
