@@ -37,7 +37,7 @@ async function verify() {
     fs.mkdirSync(runtime);
     fs.writeFileSync(path.join(installation, 'package.json'), JSON.stringify({ name: 'hexostudio-install-check', private: true }));
     run(['install', path.join(temporary, packed.filename), '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund'], installation);
-    const installed = path.join(installation, 'node_modules', 'hexostudio');
+    const installed = path.join(installation, 'node_modules', ...packed.name.split('/'));
     const manifest = JSON.parse(fs.readFileSync(path.join(installed, 'package.json'), 'utf8'));
     assert.equal(manifest.main, 'server/index.cjs');
     assert.deepEqual(manifest.bin, { hs: 'bin/hs.cjs' });

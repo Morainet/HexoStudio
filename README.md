@@ -51,14 +51,16 @@ npm run desktop
 
 ### npm 命令行版
 
-CLI 已实现，尚未首次发布到 npm。当前可从源码运行 `npm run web -- --port 4546`，或安装 [CI 构建产物](https://github.com/Morainet/HexoStudio/actions)中的 `.tgz`：
+安装并启动：
 
 ```bash
-npm install -g ./hexostudio-1.0.0.tgz
+npm install -g @morainet/hexostudio
 hs start
 ```
 
-正式发布后可使用 `npx --package hexostudio hs start`，或通过 `npm install -g hexostudio` 安装。运行 `hs --help` 查看端口、监听地址、博客目录和设置文件选项。
+也可免全局安装运行 `npx --package @morainet/hexostudio hs start`。npm 包提供网页服务，桌面版请从 [GitHub Releases](https://github.com/Morainet/HexoStudio/releases/latest) 下载。
+
+运行 `hs --help` 查看端口、监听地址、博客目录和设置文件选项。
 
 遇到配置问题可运行 `hs doctor` 检查环境；`hs doctor --json` 输出机器可读报告。
 

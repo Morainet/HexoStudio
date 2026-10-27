@@ -105,7 +105,7 @@ jobs:
           path: artifacts
       - name: Generate checksums
         working-directory: artifacts
-        run: sha256sum HexoStudio-* hexostudio-*.tgz > SHA256SUMS.txt
+        run: sha256sum HexoStudio-* *.tgz > SHA256SUMS.txt
       - name: Create or update draft
         env:
           GH_TOKEN: ${{ github.token }}
