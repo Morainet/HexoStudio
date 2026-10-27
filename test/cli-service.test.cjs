@@ -62,3 +62,9 @@ test('concurrent startup is serialized and failed attempts leave the existing in
   for(const result of results)if(result.code!==0)assert.match(result.stderr,/Another hs command/);
   assert.equal((await service.status(settings)).status,'running');
 });
+
+test('corrupt runtime records do not disclose control credentials in parser errors',async t=>{
+  const {settings}=fixture(t),files=service.paths(settings);fs.mkdirSync(files.directory,{recursive:true,mode:0o700});
+  fs.writeFileSync(files.record,'{"token":"SECRET_CONTROL_CREDENTIAL", broken}',{mode:0o600});
+  const result=await command(['status','--settings',settings,'--json']);assert.equal(result.code,1);assert.match(result.stderr,/Runtime file is not valid JSON/);assert.doesNotMatch(result.stderr,/SECRET_CONTROL_CREDENTIAL/);assert.equal(result.stdout,'');
+});

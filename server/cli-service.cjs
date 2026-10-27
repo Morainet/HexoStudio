@@ -25,7 +25,11 @@ function read(file) {
     const stat = fs.fstatSync(fd);
     if (!stat.isFile() || stat.size > 16000 || process.platform !== 'win32' && ((stat.mode & 0o077) || stat.uid !== process.getuid())) throw new Error('Unsafe runtime file. Check its owner and permissions.');
     return JSON.parse(fs.readFileSync(fd, 'utf8'));
-  } catch (error) { if (error.code === 'ENOENT') return null; throw error; }
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    if (error instanceof SyntaxError) throw new Error('Runtime file is not valid JSON. Check the instance runtime directory.');
+    throw error;
+  }
   finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 function alive(pid) {
