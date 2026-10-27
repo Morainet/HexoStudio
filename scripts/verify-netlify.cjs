@@ -12,7 +12,7 @@ try {
     const {createRequire}=require('node:module');
     const {pathToFileURL}=require('node:url');
     const root=process.cwd(), load=createRequire(path.join(root,'package.json'));
-    for(const name of ['pg','mysql2/promise','mongodb','markdown-it']) {
+    for(const name of ['pg','mysql2/promise','mongodb','markdown-it','yaml']) {
       assert.ok(load.resolve(name).startsWith(root+path.sep), name+' missing from bundle');
       load(name);
     }

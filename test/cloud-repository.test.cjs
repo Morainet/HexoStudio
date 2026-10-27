@@ -81,7 +81,10 @@ test('cloud content covers articles, drafts, pages, configs, images and optimist
   const read=await content.read(await repo.snapshot(),draft.path,'draft');
   await assert.rejects(content.save(draft.path,'draft',{content:'changed',modified:'stale'}),error=>error.status===409);
   const saved=await content.save(draft.path,'draft',{content:read.content+'正文',modified:read.modified,metadata:{tags:['test']}});
-  const published=await content.publish({path:draft.path,modified:saved.modified});
+  const prepared=require('../server/article-fields.cjs').transform({content:saved.content,changes:[{key:'cover',type:'text',value:'/images/cover.jpg'},{key:'comments',type:'boolean',value:'false'}]});
+  const decorated=await content.save(draft.path,'draft',{content:prepared.content,modified:saved.modified});
+  assert.match(decorated.content,/cover: \/images\/cover.jpg/);assert.match(decorated.content,/comments: false/);
+  const published=await content.publish({path:draft.path,modified:decorated.modified});
   assert.equal(published.kind,'post');assert.ok(published.meta.date);assert.deepEqual(published.meta.tags,['test']);
   assert.equal(commits.at(-1).changes.length,2);
   assert.equal((await content.list('draft')).length,0);

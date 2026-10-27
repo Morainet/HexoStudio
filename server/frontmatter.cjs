@@ -25,7 +25,7 @@ function updateFrontmatter(content, updates) {
   const newline = content.includes('\r\n') ? '\r\n' : '\n';
   const marker = content.startsWith('\uFEFF') ? '\uFEFF' : '';
   const source = content.slice(marker.length);
-  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)(?:\r?\n|$)/);
   const rows = match ? match[1].split(/\r?\n/) : [];
   const pending = new Map(Object.entries(values));
   const output = [];

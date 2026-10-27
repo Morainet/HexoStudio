@@ -71,6 +71,10 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
   assert.equal(savedAI.status,200);assert.equal(JSON.stringify(await savedAI.json()).includes(aiInput.apiKey),false);
   assert.equal(JSON.parse(fs.readFileSync(env.HEXOSTUDIO_SETTINGS,'utf8')).ai.apiKey,aiInput.apiKey);
   if(process.platform!=='win32') assert.equal(fs.statSync(env.HEXOSTUDIO_SETTINGS).mode&0o777,0o600);
+  const fieldsBody=JSON.stringify({content:'---\ntitle: Test\n---\nBody',changes:[{key:'cover',type:'text',value:'/cover.jpg'}]});
+  assert.equal((await fetch(`${url}/api/article-fields`,{method:'POST',body:fieldsBody})).status,401);
+  const fields=await fetch(`${url}/api/article-fields`,{method:'POST',headers:aiHeaders,body:fieldsBody});
+  assert.equal(fields.status,200);assert.match((await fields.json()).content,/cover: \/cover.jpg/);
   const write = headers => fetch(`${url}/api/config`, {
     method: 'PUT', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ scope: 'theme:demo', content: 'overwritten: true\n' })

@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { version } = require('../package.json');
-const assets = ['index.html', 'app.js', 'style.css', 'i18n.js', 'preferences.js', 'branding.js', 'mobile.js', 'ai.js'];
+const assets = ['index.html', 'app.js', 'style.css', 'i18n.js', 'preferences.js', 'branding.js', 'mobile.js', 'ai.js', 'article-fields.js'];
 let cached;
 
 function buildInfo() {

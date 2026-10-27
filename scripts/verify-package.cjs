@@ -43,6 +43,8 @@ async function verify() {
     assert.deepEqual(manifest.bin, { hs: 'bin/hs.cjs' });
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron')), false);
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
+    const fields = require(path.join(installed, 'server/article-fields.cjs'));
+    assert.equal(fields.inspect('---\ncover: /cover.jpg\n---\nBody')[0].value, '/cover.jpg');
     const version = run(['exec', '--offline', '--no', '--', 'hs', '--version'], installation).trim();
     assert.equal(version, manifest.version);
     const diagnostics = JSON.parse(run(['exec', '--offline', '--no', '--', 'hs', 'doctor', '--json', '--settings', path.join(runtime, 'settings.json')], installation));

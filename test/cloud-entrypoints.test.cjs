@@ -16,6 +16,7 @@ test('Vercel and Netlify entrypoints serve the app in cloud mode without a writa
   const url=`http://127.0.0.1:${server.address().port}`;
   assert.equal((await (await fetch(url+'/api/health')).json()).mode,'cloud');
   const html=await fetch(url+'/');assert.equal(html.status,200);assert.match(await html.text(),/HexoStudio/);
+  const fieldsScript=await fetch(url+'/article-fields.js');assert.equal(fieldsScript.status,200);assert.match(await fieldsScript.text(),/ArticleFields/);
   const aiScript=await fetch(url+'/ai.js');assert.equal(aiScript.status,200);assert.match(aiScript.headers.get('content-type'),/javascript/);
   const mobile=await fetch(url+'/mobile.js');assert.equal(mobile.status,200);assert.match(mobile.headers.get('content-type'),/javascript/);assert.match(await mobile.text(),/navigation-toggle/);
   assert.equal((await fetch(url+'/.env.cloud')).status,404);

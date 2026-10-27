@@ -142,6 +142,11 @@ test('AI settings and generation require login, trusted origin and CSRF, without
   assert.equal((await call('/api/ai/settings','PUT',settings,{Origin:'https://evil.example'})).status,403);
   const response=await call('/api/ai/settings','PUT',settings);assert.equal(response.status,200);
   const saved=await response.json();assert.equal(saved.hasKey,true);assert.equal(JSON.stringify(saved).includes('test-ai-key'),false);
+  const fields={content:'---\ntitle: Test\n---\nBody',changes:[{key:'cover',type:'text',value:'/images/cover.jpg'}]};
+  assert.equal((await call('/api/article-fields','POST',fields,{'X-CSRF-Token':''})).status,403);
+  assert.equal((await call('/api/article-fields','POST',fields,{Origin:'https://evil.example'})).status,403);
+  const fieldsResponse=await call('/api/article-fields','POST',fields);assert.equal(fieldsResponse.status,200);
+  assert.match((await fieldsResponse.json()).content,/cover: \/images\/cover.jpg/);
   const input={revision:saved.revision,action:'article',prompt:'Write about testing',text:'',language:'en'};
   assert.equal((await call('/api/ai/generate','POST',input,{'X-CSRF-Token':''})).status,403);
   assert.equal((await call('/api/ai/generate','POST',input,{Origin:'https://evil.example'})).status,403);
