@@ -16,6 +16,7 @@ test('Vercel and Netlify entrypoints serve the app in cloud mode without a writa
   const url=`http://127.0.0.1:${server.address().port}`;
   assert.equal((await (await fetch(url+'/api/health')).json()).mode,'cloud');
   const html=await fetch(url+'/');assert.equal(html.status,200);assert.match(await html.text(),/HexoStudio/);
+  const mobile=await fetch(url+'/mobile.js');assert.equal(mobile.status,200);assert.match(mobile.headers.get('content-type'),/javascript/);assert.match(await mobile.text(),/navigation-toggle/);
   assert.equal((await fetch(url+'/.env.cloud')).status,404);
   const netlify=await import(pathToFileURL(path.join(__dirname,'../netlify/functions/entry.mjs')).href);
   const response=await netlify.default(new Request('https://studio.example/'));
@@ -23,5 +24,7 @@ test('Vercel and Netlify entrypoints serve the app in cloud mode without a writa
   assert.match(response.headers.get('content-security-policy'),/frame-ancestors 'none'/);
   const script=await netlify.default(new Request('https://studio.example/app.js'));
   assert.match(script.headers.get('content-type'),/javascript/);
+  const mobileScript=await netlify.default(new Request('https://studio.example/mobile.js'));
+  assert.equal(mobileScript.status,200);assert.match(await mobileScript.text(),/navigation-toggle/);
   assert.equal((await netlify.default(new Request('https://studio.example/server/cloud.cjs'))).status,404);
 });

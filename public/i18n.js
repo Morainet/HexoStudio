@@ -1,6 +1,9 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "打开导航": "Open navigation",
+  "关闭导航": "Close navigation",
+  "工作空间导航": "Workspace navigation",
   "选择要编辑的配置文件。": "Choose a configuration file to edit.",
   "刷新列表": "Refresh list",
   "文件名称": "File name",

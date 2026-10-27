@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="hexostudio-build" content="__HEXOSTUDIO_BUILD__">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
   <meta name="theme-color" content="#fafbfc">
   <title data-i18n="HexoStudio · 博客工作台">HexoStudio · 博客工作台</title>
   <link rel="icon" href="/favicon.ico?v=2" sizes="16x16 32x32 48x48">
@@ -15,6 +15,7 @@
   <script src="/preferences.js"></script>
   <link rel="stylesheet" href="/style.css">
   <script src="/branding.js" defer></script>
+  <script src="/mobile.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -74,7 +75,9 @@
   </div>
   <div id="setup-blog-screen" class="auth-screen hidden"></div>
   <div id="app" class="shell hidden">
-    <aside class="sidebar">
+    <div id="navigation-backdrop" class="navigation-backdrop hidden" aria-hidden="true"></div>
+    <aside id="workspace-navigation" class="sidebar" aria-label="工作空间导航" data-i18n-aria-label="工作空间导航">
+      <button id="navigation-close" class="icon-button mobile-navigation-control" type="button" aria-label="关闭导航" data-i18n-aria-label="关闭导航"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
       <div class="brand"><span class="brand-mark" aria-hidden="true">H</span><div><strong data-brand-name>HexoStudio</strong><small data-brand-tagline>内容管理工作台</small></div></div>
       <div class="workspace-label"><span data-i18n="工作空间">工作空间 </span><span>WORKSPACE</span></div>
       <nav class="nav" aria-label="主导航" data-i18n-aria-label="主导航">
@@ -88,7 +91,7 @@
       <div class="sidebar-bottom"><div id="preferences-workspace"></div><div class="project-chip"><span class="project-icon"><svg class="icon"><use href="#i-folder"/></svg></span><div><strong id="project-name"><span data-i18n="尚未连接项目">尚未连接项目</span></strong><small id="project-path"><span data-i18n="请选择 Hexo 目录">请选择 Hexo 目录</span></small></div><span class="status-dot"></span></div><button id="change-project" class="text-button"><svg class="icon"><use href="#i-folder"/></svg><span data-i18n="切换项目">切换项目</span></button><button id="account-settings" class="text-button"><svg class="icon"><use href="#i-lock"/></svg><span data-i18n="修改密码">修改密码</span></button><button id="account-storage" class="text-button"><svg class="icon"><use href="#i-database"/></svg><span data-i18n="账号存储">账号存储</span></button><button id="brand-settings" class="text-button"><svg class="icon" aria-hidden="true"><use href="#i-appearance"/></svg><span data-i18n="品牌设置">品牌设置</span></button><button id="version-updates" class="text-button"><svg class="icon" aria-hidden="true"><use href="#i-update"/></svg><span data-i18n="版本与更新">版本与更新</span><span id="update-badge" class="update-badge hidden" data-i18n="有新版">有新版</span></button><a class="text-button hidden" data-brand-help target="_blank" rel="noopener noreferrer" data-i18n="帮助与支持">帮助与支持</a><small class="brand-footer hidden" data-brand-footer></small><button id="logout" class="text-button"><svg class="icon"><use href="#i-logout"/></svg><span data-i18n="退出登录">退出登录</span></button></div>
     </aside>
     <main class="main">
-      <header class="topbar"><div class="topbar-location"><span class="topbar-label" data-brand-name>HEXOSTUDIO</span><div id="breadcrumb"><span data-i18n="工作空间 / 概览">工作空间 / 概览</span></div></div><div class="top-actions"><span id="connection" class="connection"><span data-i18n="本地工作台">本地工作台</span></span><button id="top-new" class="primary small"><svg class="icon"><use href="#i-plus"/></svg><span><span data-i18n="新建文章">新建文章</span></span></button></div></header>
+      <header class="topbar"><div class="topbar-location"><button id="navigation-toggle" class="icon-button mobile-navigation-control" type="button" aria-controls="workspace-navigation" aria-expanded="false" aria-label="打开导航" data-i18n-aria-label="打开导航"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span class="topbar-label" data-brand-name>HEXOSTUDIO</span><div id="breadcrumb"><span data-i18n="工作空间 / 概览">工作空间 / 概览</span></div></div><div class="top-actions"><span id="connection" class="connection"><span data-i18n="本地工作台">本地工作台</span></span><button id="top-new" class="primary small"><svg class="icon"><use href="#i-plus"/></svg><span><span data-i18n="新建文章">新建文章</span></span></button></div></header>
       <div id="web-update-notice" class="web-update-notice hidden" role="status"><span data-i18n="网站已更新，刷新后即可使用。">网站已更新，刷新后即可使用。</span><button id="web-update-reload" class="secondary small" data-i18n="刷新页面">刷新页面</button></div>
       <div id="view" class="view"></div>
     </main>
