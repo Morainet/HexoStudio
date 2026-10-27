@@ -28,6 +28,19 @@ test('cloud configuration requires remote database, HTTPS origin and independent
   assert.equal(cloudConfig({...env,HEXOSTUDIO_ORIGIN:'http://127.0.0.1:4545'}).origin,'http://127.0.0.1:4545');
 });
 
+test('cloud origin allowlist normalizes exact domains and rejects invalid or insecure entries', () => {
+  const env={HEXOSTUDIO_SECRET:config.secret,HEXOSTUDIO_SETUP_KEY:config.setupKey,HEXOSTUDIO_DATABASE_URL:'postgresql://db.example/studio'};
+  const parse=value=>cloudConfig({...env,HEXOSTUDIO_ORIGIN:value});
+  assert.deepEqual(parse('https://studio.example').origins,['https://studio.example']);
+  const multiple=parse(' https://Studio.Example:443/, https://alias.example,https://studio.example ');
+  assert.equal(multiple.origin,'https://studio.example');
+  assert.deepEqual(multiple.origins,['https://studio.example','https://alias.example']);
+  for(const invalid of ['',',https://studio.example','https://studio.example,','https://studio.example,null','https://studio.example,https://*.example','https://studio.example,http://public.example','https://studio.example,http://localhost:4545','https://studio.example,https://alias.example/path','https://studio.example,https://alias.example?x=1','https://studio.example,https://alias.example#x','https://studio.example,https://user:pass@alias.example','https://studio.example,ftp://alias.example']) {
+    assert.throws(()=>parse(invalid),undefined,invalid);
+  }
+  assert.deepEqual(parse('http://localhost:4545,http://127.0.0.1:4545').origins,['http://localhost:4545','http://127.0.0.1:4545']);
+});
+
 test('Atlas integration URI is supported without overriding an explicit database', () => {
   const env={HEXOSTUDIO_SECRET:config.secret,HEXOSTUDIO_SETUP_KEY:config.setupKey,HEXOSTUDIO_ORIGIN:config.origin,MONGODB_URI:'mongodb+srv://user:password@cluster.example/?retryWrites=true&w=majority',HEXOSTUDIO_DATABASE_NAME:'hexostudio'};
   assert.deepEqual(cloudConfig(env).storage,{type:'mongodb',url:env.MONGODB_URI,database:'hexostudio'});

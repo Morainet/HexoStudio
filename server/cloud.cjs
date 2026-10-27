@@ -6,6 +6,7 @@ const {CloudContent}=require('./cloud-content.cjs');
 const {renderPreview}=require('./preview.cjs');
 function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkBrandUpdates}={}){
   const auth=new CloudAuth(store,config);
+  const allowedOrigins=new Set(config.origins || [config.origin]);
   const send=(res,status,data,headers={})=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers});res.end(JSON.stringify(data));};
   async function body(req){
     if(req.body!==undefined){const value=Buffer.isBuffer(req.body)?JSON.parse(req.body.toString('utf8')):typeof req.body==='string'?JSON.parse(req.body):req.body;if(Buffer.byteLength(JSON.stringify(value))>4_300_000)throw failure('请求内容超过云端限制',413);return value||{};}
@@ -17,7 +18,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
       const url=new URL(req.url,config.origin), route=url.pathname;
       if(route==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,mode:'cloud'});
       if(!route.startsWith('/api/')&&!route.startsWith('/images/hexostudio/')){if(req.method!=='GET'&&req.method!=='HEAD')throw failure('不支持的请求方法',405);return staticFile(req,res,route);}
-      if(req.method!=='GET' && req.headers.origin!==config.origin)throw failure('跨站请求被拒绝',403);
+      if(req.method!=='GET' && !allowedOrigins.has(req.headers.origin))throw failure('跨站请求被拒绝',403);
       const data=await store.read();const session=auth.session(data,req);
       if(route==='/api/branding'&&req.method==='GET')return send(res,200,brandingRecord(data.branding));
       if(route==='/api/auth/status'&&req.method==='GET')return send(res,200,{cloud:true,configured:Boolean(data.admin),authenticated:Boolean(session),username:session?.username||null,csrf:session?.csrf||null});

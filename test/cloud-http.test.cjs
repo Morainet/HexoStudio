@@ -2,7 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createCloudHandler}=require('../server/cloud.cjs');
-const {codec,versionedStore}=require('../server/cloud-store.cjs');
+const {cloudConfig,codec,versionedStore}=require('../server/cloud-store.cjs');
 const {RemoteRepository}=require('../server/remote-repository.cjs');
 
 test('cloud HTTP enforces bootstrap, authentication, CSRF and disabled local commands across instances',async t=>{
@@ -89,5 +89,36 @@ test('Web Request adapter serves static HEAD, enforces body limits and fails clo
   }finally{
     if(previous===undefined)delete process.env.HEXOSTUDIO_MODE;else process.env.HEXOSTUDIO_MODE=previous;
     if(secret===undefined)delete process.env.HEXOSTUDIO_SECRET;else process.env.HEXOSTUDIO_SECRET=secret;
+  }
+});
+
+
+test('multiple production origins can log in while foreign origins and missing CSRF remain blocked',async t=>{
+  const config=cloudConfig({HEXOSTUDIO_SECRET:'ab'.repeat(32),HEXOSTUDIO_SETUP_KEY:'bootstrap-'.repeat(5),HEXOSTUDIO_DATABASE_URL:'postgresql://db.example/studio',HEXOSTUDIO_ORIGIN:'https://studio.example,https://alias.example'});
+  let state={};
+  const store={async read(){return structuredClone(state);},async update(action){return action(state);}};
+  const handler=createCloudHandler({config,store});
+  const server=http.createServer((req,res)=>handler(req,res,()=>res.end()));
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const base=`http://127.0.0.1:${server.address().port}`;
+  const call=(route,origin,input={},headers={})=>fetch(base+route,{method:'POST',headers:{'Content-Type':'application/json',...(origin===undefined?{}:{Origin:origin}),...headers},body:JSON.stringify(input)});
+  const input={username:'admin',password:'secure-test-password',setupKey:config.setupKey};
+  assert.equal((await call('/api/auth/setup',config.origins[1],input)).status,200);
+  for(const origin of config.origins){
+    const login=await call('/api/auth/login',origin,input);
+    assert.equal(login.status,200);
+    const cookie=login.headers.get('set-cookie');
+    assert.match(cookie,/HttpOnly; SameSite=Strict/);
+    assert.match(cookie,/; Secure/);
+    assert.doesNotMatch(cookie,/Domain=/i);
+    const headers={Cookie:cookie.split(';')[0]};
+    const csrf=(await login.json()).csrf;
+    assert.equal((await call('/api/auth/logout',origin,{},headers)).status,403);
+    for(const foreign of [undefined,'null','https://evil.example','https://sub.alias.example','https://alias.example.evil.example','http://alias.example','https://alias.example:444','https://studio.example,https://alias.example']) {
+      assert.equal((await call('/api/auth/login',foreign,input)).status,403);
+      assert.equal((await call('/api/auth/logout',foreign,{},{...headers,'X-CSRF-Token':csrf})).status,403);
+    }
+    assert.equal((await call('/api/auth/logout',origin,{},{...headers,'X-CSRF-Token':csrf})).status,200);
   }
 });

@@ -28,12 +28,20 @@
 | `HEXOSTUDIO_MODE` | 是 | `cloud`；仓库提供的函数入口和 Docker 镜像已设置 |
 | `HEXOSTUDIO_DATABASE_URL` | 是，或使用下方 MongoDB 集成变量 | 数据库连接 URI，需包含数据库名称；优先于 `MONGODB_URI` |
 | `MONGODB_URI` | MongoDB 集成可用 | Vercel MongoDB Atlas 原生集成自动注入；未设置 `HEXOSTUDIO_DATABASE_URL` 时读取 |
-| `HEXOSTUDIO_ORIGIN` | 是 | 后台固定访问地址，例如 `https://studio.example.com`，不带路径 |
+| `HEXOSTUDIO_ORIGIN` | 是 | 后台访问地址，不带路径；多个域名用英文逗号分隔，第一个为主地址 |
 | `HEXOSTUDIO_SECRET` | 是 | 64 位十六进制随机密钥，用于加密数据库内容 |
 | `HEXOSTUDIO_SETUP_KEY` | 是 | 至少 32 字符的独立随机密钥，用于首次创建管理员 |
 | `HEXOSTUDIO_DATABASE_NAME` | 否 | MongoDB 数据库名；默认从 URI 读取 |
 | `HEXOSTUDIO_HOST` | 常驻服务 | 设为 `0.0.0.0`；Docker 已设置，函数入口无需设置 |
 | `PORT` | 常驻服务 | 使用平台分配的端口；`HEXOSTUDIO_PORT` 和 `--port` 优先级更高 |
+
+同时使用自定义域名和平台默认域名时，将它们绑定到同一个生产部署，再填写：
+
+```text
+HEXOSTUDIO_ORIGIN=https://studio.example.com,https://your-project.vercel.app
+```
+
+修改后重新部署才会生效。所有公网地址必须使用 HTTPS，不支持通配符；只填写自己控制的后台域名。后台对请求来源逐一精确匹配，未列出的地址仍会被拒绝。两个域名共用账号、博客配置和数据库，但浏览器 Cookie 按域名隔离，需要分别登录。本机 HTTP 调试地址不能与 HTTPS 地址混用。
 
 连接 URI 格式：
 
@@ -61,7 +69,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 
 1. Fork 仓库，在 Vercel 导入 **HexoStudio 仓库**，根目录保持仓库根目录。
 2. Framework Preset 选 **Other**，Node.js 选 **22.x 或 24.x**。安装、构建、输出目录及路由由 `vercel.json` 提供。
-3. 填入上述环境变量。`HEXOSTUDIO_ORIGIN` 使用固定生产域名；尚未确定域名时，先创建项目取得域名，再填写变量并重新部署。
+3. 填入上述环境变量。`HEXOSTUDIO_ORIGIN` 填写允许访问的生产域名，多个用英文逗号分隔；尚未确定域名时，先创建项目取得域名，再填写变量并重新部署。
 4. 部署完成后打开固定域名。不要直接访问 `/api/entry`，也不要用不同的预览域名执行写操作。
 
 函数入口自动启用云端模式，静态资源与 API 都经同一个处理器返回。无需设置本机目录或 `HEXOSTUDIO_TOKEN`。
@@ -93,7 +101,7 @@ docker compose up -d --build
 docker compose logs -f hexostudio
 ```
 
-Compose 默认只将后台绑定到服务器的 `127.0.0.1:4545`，使用 Nginx / Caddy 将 HTTPS 域名反向代理到该端口。入口域名必须与 `HEXOSTUDIO_ORIGIN` 一致。容器以非 root 用户、只读文件系统运行，内容与账号都不依赖容器卷。
+Compose 默认只将后台绑定到服务器的 `127.0.0.1:4545`，使用 Nginx / Caddy 将 HTTPS 域名反向代理到该端口。入口域名必须列在 `HEXOSTUDIO_ORIGIN` 中。容器以非 root 用户、只读文件系统运行，内容与账号都不依赖容器卷。
 
 如需本机试运行，设置 `HEXOSTUDIO_ORIGIN=http://127.0.0.1:4545`，再用该地址访问。公网域名必须使用 HTTPS。
 

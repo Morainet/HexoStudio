@@ -11,11 +11,16 @@ function cloudConfig(env = process.env) {
   if (!env.HEXOSTUDIO_DATABASE_URL && env.MONGODB_URI && !/^mongodb(?:\+srv)?:/.test(url)) throw new Error('MONGODB_URI 必须是 MongoDB 连接地址');
   const type = /^postgres(?:ql)?:/.test(url) ? 'postgres' : /^mysql:/.test(url) ? 'mysql' : /^mongodb(?:\+srv)?:/.test(url) ? 'mongodb' : '';
   const storage = normalizeStorage({type, url, database:env.HEXOSTUDIO_DATABASE_NAME});
-  let origin;
-  try { origin = new URL(env.HEXOSTUDIO_ORIGIN); } catch { throw new Error('请设置 HEXOSTUDIO_ORIGIN 为后台的完整访问地址'); }
-  if (!['https:', 'http:'].includes(origin.protocol) || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password) throw new Error('HEXOSTUDIO_ORIGIN 格式无效');
-  if (origin.protocol !== 'https:' && !['localhost','127.0.0.1','[::1]'].includes(origin.hostname)) throw new Error('云端访问地址必须使用 HTTPS');
-  return { storage, secret:env.HEXOSTUDIO_SECRET, setupKey:env.HEXOSTUDIO_SETUP_KEY, origin:origin.origin };
+  const origins = [...new Set((env.HEXOSTUDIO_ORIGIN || '').split(',').map(value => {
+    let origin;
+    try { origin = new URL(value.trim()); } catch { throw new Error('请设置 HEXOSTUDIO_ORIGIN 为后台的完整访问地址，多个地址使用英文逗号分隔'); }
+    if (!['https:', 'http:'].includes(origin.protocol) || origin.pathname !== '/' || origin.search || origin.hash || origin.username || origin.password || origin.hostname.includes('*')) throw new Error('HEXOSTUDIO_ORIGIN 格式无效，不支持路径或通配符');
+    if (origin.protocol !== 'https:' && !['localhost','127.0.0.1','[::1]'].includes(origin.hostname)) throw new Error('云端访问地址必须使用 HTTPS');
+    return origin.origin;
+  }))];
+  // All aliases use the same cookie security policy as the primary origin.
+  if (origins.some(origin => new URL(origin).protocol !== new URL(origins[0]).protocol)) throw new Error('HEXOSTUDIO_ORIGIN 中的访问地址必须使用相同协议');
+  return { storage, secret:env.HEXOSTUDIO_SECRET, setupKey:env.HEXOSTUDIO_SETUP_KEY, origin:origins[0], origins };
 }
 function codec(secret) {
   const key = Buffer.from(secret, 'hex');
