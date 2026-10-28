@@ -889,7 +889,7 @@ $('#version-updates').onclick = async () => {
 function storageFields(type, prefix) {
   const fields = $(`#${prefix}-storage-fields`);
   fields.replaceChildren();
-  const add = (label, id, placeholder, required = true) => {
+  const add = (label, id, placeholder, required = true, target = fields) => {
     const row = document.createElement('label');
     const caption = document.createElement('span');
     caption.dataset.i18n = label; caption.textContent = t(label); row.append(caption);
@@ -900,16 +900,30 @@ function storageFields(type, prefix) {
     input.required = required;
     input.autocomplete = 'off';
     row.append(input);
-    fields.append(row);
+    target.append(row);
   };
   if (type === 'postgres') add("PostgreSQL 连接地址", 'storage-url', 'postgresql://user:password@host:5432/database');
   if (type === 'mysql') add("MySQL 连接地址", 'storage-url', 'mysql://user:password@host:3306/database');
-  if (type === 'mongodb') { add("MongoDB 连接地址", 'storage-url', 'mongodb://user:password@host:27017'); add("数据库名称（地址中已包含可留空）", 'storage-database', "例如 hexostudio", false); }
+  if (type === 'mongodb') {
+    add("MongoDB 连接地址", 'storage-url', 'mongodb+srv://user:password@cluster.mongodb.net/hexostudio');
+    add("数据库名称（地址中已包含可留空）", 'storage-database', "例如 hexostudio", false);
+  }
+  if (['postgres', 'mysql', 'mongodb'].includes(type)) {
+    const advanced = document.createElement('details'); advanced.className = 'database-advanced';
+    const summary = document.createElement('summary'); summary.dataset.i18n = '代理设置（可选）'; summary.textContent = t('代理设置（可选）'); advanced.append(summary);
+    add('SOCKS5 代理地址', 'storage-proxy', 'socks5://127.0.0.1:端口', false, advanced);
+    const help = document.createElement('p');
+    help.dataset.i18n = '留空使用统一网络设置。可填写数据库专用 SOCKS5 代理；数据库 IP 访问列表需允许实际出口 IP。';
+    help.textContent = t(help.dataset.i18n); advanced.append(help); fields.append(advanced);
+  }
 }
 function storageValue(prefix) {
   const type = $(`#${prefix}-storage-type`).value;
   const value = { type, url: $(`#${prefix}-storage-url`).value.trim() };
-  if (type === 'mongodb') value.database = $(`#${prefix}-storage-database`).value.trim();
+  if (type === 'mongodb') {
+    value.database = $(`#${prefix}-storage-database`).value.trim();
+  }
+  value.proxyUrl = $(`#${prefix}-storage-proxy`).value.trim();
   return value;
 }
 $('#auth-storage-type').onchange = () => {

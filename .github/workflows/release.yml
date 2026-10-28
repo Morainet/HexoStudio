@@ -74,6 +74,12 @@ jobs:
       - name: Build Windows
         if: matrix.platform == 'win'
         run: npm run package:win -- --publish never
+      - name: Verify macOS application signature
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          set -euo pipefail
+          codesign --verify --deep --strict --verbose=2 "dist/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/HexoStudio.app"
       - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.platform }}-${{ matrix.arch }}

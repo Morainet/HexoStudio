@@ -1,0 +1,37 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const crypto = require('node:crypto');
+
+test('network settings reject anonymous and foreign-origin writes and never return proxy credentials', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-network-http-'));
+  const token = crypto.randomBytes(32).toString('hex');
+  const values = { HEXOSTUDIO_SETTINGS: path.join(directory, 'settings.json'), HEXOSTUDIO_TOKEN: token };
+  const previous = Object.fromEntries(Object.keys(values).map(key => [key, process.env[key]]));
+  Object.assign(process.env, values);
+  const salt = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.scryptSync('network-test-password', Buffer.from(salt, 'hex'), 64, { N: 1 << 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 }).toString('hex');
+  fs.writeFileSync(values.HEXOSTUDIO_SETTINGS, JSON.stringify({ admin: { username: 'test-admin', salt, hash } }));
+  t.after(() => { for (const [key, value] of Object.entries(previous)) value === undefined ? delete process.env[key] : process.env[key] = value; fs.rmSync(directory, { recursive: true, force: true }); });
+  const { server, url } = await require('../server/index.cjs').startServer(0);
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const endpoint = `${url}/api/network/settings`;
+  assert.equal((await fetch(endpoint)).status, 401);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: url };
+  const input = { revision: 'initial', mode: 'socks5', proxyUrl: 'socks5://alice:secret@127.0.0.1:7890' };
+  const login = await fetch(`${url}/api/auth/login`, { method: 'POST', headers: { Origin: url, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'test-admin', password: 'network-test-password' }) });
+  assert.equal(login.status, 200);
+  const cookie = login.headers.get('set-cookie').split(';')[0]; await login.json();
+  assert.equal((await fetch(endpoint, { method: 'PUT', headers: { Cookie: cookie, Origin: url, 'Content-Type': 'application/json' }, body: JSON.stringify(input) })).status, 403, 'session writes require CSRF');
+  assert.equal((await fetch(endpoint, { method: 'PUT', headers: { ...headers, Origin: 'https://foreign.example' }, body: JSON.stringify(input) })).status, 403);
+  const saved = await fetch(endpoint, { method: 'PUT', headers, body: JSON.stringify(input) });
+  assert.equal(saved.status, 200); const result = await saved.json();
+  assert.equal(result.hasProxy, true); assert.equal(result.endpoint, '127.0.0.1:7890');
+  assert.doesNotMatch(JSON.stringify(result), /alice|secret/);
+  assert.doesNotMatch(await (await fetch(endpoint, { headers })).text(), /alice|secret/);
+  const settings = JSON.parse(fs.readFileSync(values.HEXOSTUDIO_SETTINGS, 'utf8'));
+  assert.equal(settings.network.proxyUrl, input.proxyUrl);
+  assert.equal((await fetch(endpoint, { method: 'PUT', headers, body: JSON.stringify({ revision: result.revision, mode: 'direct' }) })).status, 200);
+});

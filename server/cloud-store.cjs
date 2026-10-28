@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { normalizeStorage } = require('./auth-store.cjs');
+const { mongoOptions, mongoError } = require('./mongo-connection.cjs');
 const TABLE = 'hexostudio_cloud';
 function cloudConfig(env = process.env) {
   if (!/^[a-f0-9]{64}$/i.test(env.HEXOSTUDIO_SECRET || '')) throw new Error('HEXOSTUDIO_SECRET 必须是 64 位十六进制随机密钥');
@@ -47,7 +48,7 @@ function createCloudStore(config) {
     let db;
     try {
       if (storage.type==='postgres') {
-        db=new (require('pg').Client)({connectionString:storage.url,connectionTimeoutMillis:6000,statement_timeout:10000});
+        db=new (require('pg').Client)({connectionString:storage.url,connectionTimeoutMillis:20000,statement_timeout:10000,...require('./network.cjs').databaseStream(storage)});
         await db.connect();
         await db.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (id VARCHAR(8) PRIMARY KEY, revision BIGINT NOT NULL, payload TEXT NOT NULL)`);
         await db.query(`INSERT INTO ${TABLE} VALUES ($1,0,$2) ON CONFLICT (id) DO NOTHING`,['main',cipher.seal({})]);
@@ -57,7 +58,7 @@ function createCloudStore(config) {
         });
       }
       if (storage.type==='mysql') {
-        db=await require('mysql2/promise').createConnection({uri:storage.url,connectTimeout:6000});
+        db=await require('mysql2/promise').createConnection({uri:storage.url,connectTimeout:20000,...require('./network.cjs').databaseStream(storage)});
         await db.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (id VARCHAR(8) PRIMARY KEY, revision BIGINT NOT NULL, payload LONGTEXT NOT NULL)`);
         await db.execute(`INSERT IGNORE INTO ${TABLE} VALUES (?,0,?)`,['main',cipher.seal({})]);
         return await action({
@@ -65,7 +66,7 @@ function createCloudStore(config) {
           cas:async(revision,payload)=> Boolean((await db.execute(`UPDATE ${TABLE} SET revision=revision+1,payload=? WHERE id=? AND revision=?`,[payload,'main',revision]))[0].affectedRows)
         });
       }
-      db=new (require('mongodb').MongoClient)(storage.url,{serverSelectionTimeoutMS:6000,socketTimeoutMS:10000});
+      db=new (require('mongodb').MongoClient)(storage.url,mongoOptions(storage));
       await db.connect(); const collection=db.db(storage.database).collection(TABLE);
       try { await collection.updateOne({_id:'main'},{$setOnInsert:{revision:0,payload:cipher.seal({})}},{upsert:true}); }
       catch(error) { if(error.code!==11000) throw error; }
@@ -75,6 +76,7 @@ function createCloudStore(config) {
       });
     } catch(error) {
       if(error.status) throw error;
+      if(storage.type==='mongodb') throw mongoError(error);
       throw Object.assign(new Error('云端数据库连接或操作失败，请检查连接配置和数据库权限'),{status:503});
     } finally { if(db) await (storage.type==='mongodb'?db.close():db.end()).catch(()=>{}); }
   }

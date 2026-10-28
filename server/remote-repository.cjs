@@ -6,7 +6,7 @@ function safePath(name){
   return name;
 }
 class RemoteRepository {
-  constructor(connection,fetcher=fetch){
+  constructor(connection,fetcher=require('./network.cjs').fetchNetwork){
     try { this.connection=remoteInput(connection); } catch(error) { throw failure(error.message); }
     this.fetcher=fetcher;
     this.github=this.connection.provider==='github';

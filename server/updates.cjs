@@ -14,7 +14,7 @@ function isNewerRelease(latest, current) {
 }
 
 // Shared per process: opening multiple tabs must not exhaust GitHub's public API quota.
-function createUpdateChecker({ fetchImpl = globalThis.fetch, now = Date.now, version = currentVersion, repository = 'Morainet/HexoStudio' } = {}) {
+function createUpdateChecker({ fetchImpl = require('./network.cjs').fetchNetwork, now = Date.now, version = currentVersion, repository = 'Morainet/HexoStudio' } = {}) {
   require('./branding.cjs').validateBranding({ releaseRepository: repository });
   const releasesUrl = `https://github.com/${repository}/releases`;
   const apiUrl = `https://api.github.com/repos/${repository}/releases/latest`;

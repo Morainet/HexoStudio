@@ -50,6 +50,7 @@ async function completion(config, messages, { lookup = dns.lookup, request = htt
   const host = url.hostname.replace(/^\[|\]$/g,'');
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+  let proxyAgent;
   try {
     // Resolve once, validate every result, and pin the connection to that result.
     const addresses = await Promise.race([
@@ -58,10 +59,11 @@ async function completion(config, messages, { lookup = dns.lookup, request = htt
     ]);
     if (!addresses.length || addresses.some(item => !publicAddress(item.address))) throw failure('AI 服务必须使用公网 HTTPS 地址');
     const pinned = addresses.find(item => item.family === 4) || addresses[0];
+    proxyAgent = require('./network.cjs').aiAgent(pinned.address, controller.signal);
     const tokenField = url.hostname === 'api.openai.com' ? 'max_completion_tokens' : 'max_tokens';
     const payload = JSON.stringify({model:config.model,messages,stream:false,[tokenField]:4096});
     return await new Promise((resolve,reject) => {
-      const req = request(url,{method:'POST',agent:false,signal:controller.signal,
+      const req = request(url,{method:'POST',agent:proxyAgent || false,signal:controller.signal,
         lookup:(_host,options,callback)=> options.all ? callback(null,[pinned]) : callback(null,pinned.address,pinned.family),
         headers:{Authorization:`Bearer ${config.apiKey}`,'Content-Type':'application/json',Accept:'application/json','Content-Length':Buffer.byteLength(payload)}
       }, res => {
@@ -88,7 +90,7 @@ async function completion(config, messages, { lookup = dns.lookup, request = htt
   } catch(error) {
     if (error.status) throw error;
     throw failure('无法连接 AI 服务，请检查地址后重试',502);
-  } finally { clearTimeout(timer); }
+  } finally { clearTimeout(timer); proxyAgent?.destroy(); }
 }
 async function generate(store, input, authorize = () => {}, transport = completion) {
   const messages = inputMessages(input), lease = crypto.randomUUID(), now=Date.now();

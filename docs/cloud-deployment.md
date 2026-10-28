@@ -28,6 +28,7 @@
 | `HEXOSTUDIO_MODE` | 是 | `cloud`；仓库提供的函数入口和 Docker 镜像已设置 |
 | `HEXOSTUDIO_DATABASE_URL` | 是，或使用下方 MongoDB 集成变量 | 数据库连接 URI，需包含数据库名称；优先于 `MONGODB_URI` |
 | `MONGODB_URI` | MongoDB 集成可用 | Vercel MongoDB Atlas 原生集成自动注入；未设置 `HEXOSTUDIO_DATABASE_URL` 时读取 |
+| `HEXOSTUDIO_PROXY_URL` | 否 | 服务端统一 SOCKS5 代理，如 `socks5://proxy-host:1080`；作用于仓库 API、AI、更新和数据库，代理必须能从部署服务器访问。AI 和 Atlas SRV 仍需要可用的系统 DNS。 |
 | `HEXOSTUDIO_ORIGIN` | 是 | 后台访问地址，不带路径；多个域名用英文逗号分隔，第一个为主地址 |
 | `HEXOSTUDIO_SECRET` | 是 | 64 位十六进制随机密钥，用于加密数据库内容 |
 | `HEXOSTUDIO_SETUP_KEY` | 是 | 至少 32 字符的独立随机密钥，用于首次创建管理员 |

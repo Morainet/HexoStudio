@@ -9,6 +9,7 @@ const assets = require('./assets.cjs');
 const git = require('./git.cjs');
 const { brandingRecord, brandingMutation } = require('./branding.cjs');
 const ai = require('./ai.cjs');
+const network = require('./network.cjs');
 const { AuthManager } = require('./auth.cjs');
 
 const publicDir = path.join(__dirname, '..', 'public');
@@ -33,6 +34,7 @@ function saveSettings(value) {
   if (process.platform !== 'win32') fs.chmodSync(settingsFile, 0o600);
 }
 const auth = new AuthManager(loadSettings, saveSettings);
+network.configure(() => process.env.HEXOSTUDIO_MODE === 'cloud' ? undefined : loadSettings().network);
 function getRoot() {
   const stored = process.env.HEXO_ROOT || loadSettings().root;
   return stored ? core.validateProject(stored) : null;
@@ -76,7 +78,7 @@ function sameOrigin(req) {
 }
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'article-fields.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
+  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'network.js': 'text/javascript', 'article-fields.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
   if (!Object.hasOwn(types, name)) return send(res, 404, { error: '未找到页面' });
   res.writeHead(200, {
     'Content-Type': types[name].startsWith('text/') ? `${types[name]}; charset=utf-8` : types[name],
@@ -131,6 +133,14 @@ async function handle(req, res) {
     }
     if (!authorized(req)) return send(res, 401, { error: '请先登录' });
     if (req.method !== 'GET' && !tokenAuthorized(req)) auth.checkCsrf(req);
+    if (url.pathname === '/api/network/settings') {
+      if (req.method === 'GET') return send(res, 200, network.record());
+      if (req.method === 'PUT') {
+        const input = await body(req), settings = loadSettings();
+        settings.network = network.mutation(settings.network, input);
+        saveSettings(settings); return send(res, 200, network.record());
+      }
+    }
     if (url.pathname === '/api/article-fields' && req.method === 'POST') return send(res, 200, require('./article-fields.cjs').transform(await body(req)));
     if (url.pathname === '/api/ai/settings') {
       if (req.method === 'GET') return send(res, 200, ai.record(loadSettings().ai));

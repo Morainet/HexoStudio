@@ -102,7 +102,7 @@ hs start
 
 [查看 Actions](https://github.com/Morainet/HexoStudio/actions) · [构建与发布说明](https://github.com/Morainet/HexoStudio/blob/main/docs/development.md#github-actions-自动化)
 
-当前安装包未配置签名和 macOS 公证，仍需在目标系统上验证安装与启动。
+macOS 构建使用临时签名并校验应用完整性，尚未配置 Apple 开发者签名与公证；首次打开仍可能需要在系统设置中允许。安装及启动需在目标系统上验证。
 
 ## 许可证
 

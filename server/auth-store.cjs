@@ -2,6 +2,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { proxyOptions, mongoOptions, mongoError } = require('./mongo-connection.cjs');
 
 const SQLITE_DEFAULT = path.join(os.homedir(), '.hexostudio', 'auth.sqlite');
 const TABLE = 'hexostudio_admin';
@@ -22,10 +23,14 @@ function normalizeStorage(input) {
     if (input.type === 'mongodb') {
       const database = String(input.database || decodeURIComponent(parsed.pathname.slice(1))).trim();
       if (!/^[a-zA-Z0-9_-]{1,64}$/.test(database)) throw new Error('请输入 MongoDB 数据库名称（字母、数字、下划线或连字符）');
-      return { type: input.type, url: input.url, database };
+      const proxyUrl = String(input.proxyUrl || '').trim();
+      proxyOptions(proxyUrl);
+      return { type: input.type, url: input.url, database, ...(proxyUrl ? { proxyUrl } : {}) };
     }
     if (!parsed.pathname || parsed.pathname === '/') throw new Error('连接地址需要包含数据库名称');
-    return { type: input.type, url: input.url };
+    const proxyUrl = String(input.proxyUrl || '').trim();
+    proxyOptions(proxyUrl);
+    return { type: input.type, url: input.url, ...(proxyUrl ? { proxyUrl } : {}) };
   }
   throw new Error('不支持的管理员存储类型');
 }
@@ -42,6 +47,16 @@ function describeStorage(config) {
 
 function databaseError(error) {
   if (error.status) return error;
+  const messages = {
+    EPROXY: 'SOCKS5 代理连接失败，请检查代理端口、认证和节点 TCP 支持',
+    ECONNREFUSED: '数据库连接被拒绝，请检查地址、端口、代理和防火墙',
+    ETIMEDOUT: '数据库连接超时，请检查网络、代理和数据库 IP 访问列表',
+    ENOTFOUND: '数据库 DNS 解析失败，请检查地址和系统 DNS',
+    EAI_AGAIN: '数据库 DNS 暂时不可用，请检查系统 DNS 后重试',
+    '28P01': '数据库认证失败，请检查数据库用户名和密码',
+    ER_ACCESS_DENIED_ERROR: '数据库认证失败，请检查数据库用户名和密码'
+  };
+  if (Object.hasOwn(messages, error.code)) return Object.assign(new Error(messages[error.code]), { status: 503 });
   const code = typeof error.code === 'string' && /^[A-Z0-9_]+$/.test(error.code) ? `（${error.code}）` : '';
   return Object.assign(new Error(`管理员数据库连接或操作失败${code}`), { status: 503 });
 }
@@ -110,7 +125,7 @@ function createStore(config, loadSettings, saveSettings) {
   if (config.type === 'postgres') {
     const { Client } = require('pg');
     const run = async action => {
-      const client = new Client({ connectionString: config.url, connectionTimeoutMillis: 6000 });
+      const client = new Client({ connectionString: config.url, connectionTimeoutMillis: 20000, ...require('./network.cjs').databaseStream(config) });
       try {
         await client.connect();
         await client.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (id VARCHAR(8) PRIMARY KEY, username VARCHAR(32) NOT NULL, salt VARCHAR(64) NOT NULL, hash VARCHAR(128) NOT NULL)`);
@@ -136,7 +151,7 @@ function createStore(config, loadSettings, saveSettings) {
     const run = async action => {
       let connection;
       try {
-        connection = await mysql.createConnection({ uri: config.url, connectTimeout: 6000 });
+        connection = await mysql.createConnection({ uri: config.url, connectTimeout: 20000, ...require('./network.cjs').databaseStream(config) });
         await connection.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (id VARCHAR(8) PRIMARY KEY, username VARCHAR(32) NOT NULL, salt VARCHAR(64) NOT NULL, hash VARCHAR(128) NOT NULL)`);
         return await action(connection);
       } catch (error) { throw databaseError(error); }
@@ -157,12 +172,13 @@ function createStore(config, loadSettings, saveSettings) {
   }
   const { MongoClient } = require('mongodb');
   const run = async action => {
-    const client = new MongoClient(config.url, { serverSelectionTimeoutMS: 6000 });
+    let client;
     try {
+      client = new MongoClient(config.url, mongoOptions(config));
       await client.connect();
       return await action(client.db(config.database).collection(TABLE));
-    } catch (error) { throw databaseError(error); }
-    finally { await client.close().catch(() => {}); }
+    } catch (error) { throw error.status ? error : mongoError(error); }
+    finally { await client?.close().catch(() => {}); }
   };
   return {
     async probe() { await run(collection => collection.findOne({ _id: 'main' })); },

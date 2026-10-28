@@ -9,7 +9,7 @@ function prepareOem(file, output = path.resolve(__dirname, '../dist/oem')) {
   if (!/^[a-zA-Z][a-zA-Z0-9-]*(?:\.[a-zA-Z][a-zA-Z0-9-]*){2,}$/.test(desktop.appId || '')) throw new Error('desktop.appId must be a unique reverse-DNS identifier.');
   if (typeof productName !== 'string' || !productName.trim() || productName.length > 48 || /[\\/:*?"<>|\x00-\x1f]/.test(productName)) throw new Error('Invalid desktop.productName.');
   const base = structuredClone(require('../package.json').build);
-  const config = { ...base, appId: desktop.appId, productName, extraMetadata: { ...base.extraMetadata, productName }, directories: { output: 'dist/oem-build' }, extraResources: [{ from: path.join(output, 'oem-branding.json'), to: 'oem-branding.json' }] };
+  const config = { ...base, appId: desktop.appId, productName, extraMetadata: { ...base.extraMetadata, productName, desktopAppId: desktop.appId }, directories: { output: 'dist/oem-build' }, extraResources: [{ from: path.join(output, 'oem-branding.json'), to: 'oem-branding.json' }] };
   if (desktop.icons) {
     const icons = {};
     for (const [key, extension] of [['mac','.icns'],['win','.ico'],['png','.png']]) {

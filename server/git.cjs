@@ -28,15 +28,18 @@ function remoteInput(data) {
 
 function gitEnv(connection) {
   const env = { ...process.env, GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' };
-  if (!connection?.token) return env;
-  const host = connection.provider === 'github' ? 'github.com' : 'gitlab.com';
-  const username = connection.provider === 'github' ? 'x-access-token' : 'oauth2';
-  const auth = Buffer.from(`${username}:${connection.token}`).toString('base64');
-  env.GIT_CONFIG_COUNT = '2';
-  env.GIT_CONFIG_KEY_0 = `http.https://${host}/.extraheader`;
-  env.GIT_CONFIG_VALUE_0 = `Authorization: Basic ${auth}`;
-  env.GIT_CONFIG_KEY_1 = 'credential.helper';
-  env.GIT_CONFIG_VALUE_1 = '';
+  const pairs = [];
+  if (connection?.token) {
+    const host = connection.provider === 'github' ? 'github.com' : 'gitlab.com';
+    const username = connection.provider === 'github' ? 'x-access-token' : 'oauth2';
+    const auth = Buffer.from(`${username}:${connection.token}`).toString('base64');
+    pairs.push([`http.https://${host}/.extraheader`, `Authorization: Basic ${auth}`], ['credential.helper', '']);
+  }
+  pairs.push(...require('./network.cjs').gitSettings(env));
+  if (pairs.length) {
+    env.GIT_CONFIG_COUNT = String(pairs.length);
+    pairs.forEach(([key, value], index) => { env[`GIT_CONFIG_KEY_${index}`] = key; env[`GIT_CONFIG_VALUE_${index}`] = value; });
+  }
   return env;
 }
 
@@ -57,6 +60,16 @@ function runGit(cwd, args, connection, timeout = 120000) {
         let message = (error || output || `Git 退出码 ${code}`).trim().slice(0, 1200);
         for (const secret of [connection?.token, env.GIT_CONFIG_VALUE_0?.replace(/^Authorization: Basic /, '')]) {
           if (secret) message = message.replaceAll(secret, '[已隐藏]');
+        }
+        for (let index = 0; index < Number(env.GIT_CONFIG_COUNT || 0); index++) {
+          if (!env[`GIT_CONFIG_KEY_${index}`]?.endsWith('.proxy')) continue;
+          const value = env[`GIT_CONFIG_VALUE_${index}`];
+          if (!value) continue;
+          message = message.replaceAll(value, '[已隐藏代理]');
+          try {
+            const proxy = new URL(value);
+            for (const secret of [proxy.username, proxy.password, decodeURIComponent(proxy.username), decodeURIComponent(proxy.password)]) if (secret) message = message.replaceAll(secret, '[已隐藏]');
+          } catch { /* Proxy configuration was validated before spawning Git. */ }
         }
         reject(new Error(message));
       }
