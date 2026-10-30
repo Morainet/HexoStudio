@@ -12,7 +12,7 @@ try {
     const {createRequire}=require('node:module');
     const {pathToFileURL}=require('node:url');
     const root=process.cwd(), load=createRequire(path.join(root,'package.json'));
-    for(const name of ['pg','mysql2/promise','mongodb','markdown-it','yaml']) {
+    for(const name of ['pg','mysql2/promise','mongodb','markdown-it','katex','yaml']) {
       assert.ok(load.resolve(name).startsWith(root+path.sep), name+' missing from bundle');
       load(name);
     }
@@ -23,6 +23,9 @@ try {
       assert.equal(html.status,200);assert.match(await html.text(),/HexoStudio/);
       const script=await entry.default(new Request('https://studio.example/app.js'));
       assert.match(script.headers.get('content-type'),/javascript/);
+      for(const asset of ['diagram-preview.html','vendor/mermaid/mermaid.min.js','vendor/katex/katex.min.css','vendor/katex/fonts/KaTeX_Main-Regular.woff2']) {
+        const result=await entry.default(new Request('https://studio.example/'+asset,{method:'HEAD'}));assert.equal(result.status,200,asset);
+      }
       const health=await entry.default(new Request('https://studio.example/api/health'));
       assert.equal((await health.json()).mode,'cloud');
       console.log('Netlify archive: production dependencies, static assets and cloud entrypoint passed.');

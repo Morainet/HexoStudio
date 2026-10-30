@@ -31,6 +31,7 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
         const input=await body(req),result=await auth.login(input);return send(res,200,{authenticated:true,username:input.username,csrf:result.csrf},{'Set-Cookie':result.cookie});
       }
       auth.require(data,req,req.method!=='GET');
+      if(route==='/api/network/test'&&req.method==='POST')return send(res,200,await require('./network-check.cjs').checkSaved({}));
       if(route==='/api/network/settings') {
         if(req.method==='GET')return send(res,200,{...require('./network.cjs').record(),managed:true});
         throw failure('云端网络请通过 HEXOSTUDIO_PROXY_URL 环境变量配置',409);

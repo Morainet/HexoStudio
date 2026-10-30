@@ -74,6 +74,20 @@ test('a failed manual proxy does not silently fall back to a direct connection',
   assert.equal(hits, 0);
 });
 
+test('cancelling a stalled SOCKS handshake immediately closes the connection', async t => {
+  let greeting, closed;
+  const arrived = new Promise(resolve => { greeting = resolve; });
+  const disconnected = new Promise(resolve => { closed = resolve; });
+  const target = net.createServer(socket => { socket.once('data', greeting); socket.once('close', closed); });
+  const port = await listen(target, t), controller = new AbortController();
+  const connecting = network.tunnel('destination.invalid', 443, `socks5://127.0.0.1:${port}`, controller.signal);
+  const rejected = assert.rejects(connecting, error => error.code === 'ABORT_ERR');
+  await arrived; controller.abort(); await rejected;
+  let timer;
+  try { await Promise.race([disconnected, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('connection remained open after cancellation')), 1000); })]); }
+  finally { clearTimeout(timer); }
+});
+
 test('PostgreSQL connects through SOCKS and completes the native startup exchange', async t => {
   const target = net.createServer(socket => {
     socket.once('data', () => {

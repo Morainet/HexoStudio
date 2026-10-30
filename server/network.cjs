@@ -31,15 +31,32 @@ function mutation(stored, input) {
   return { mode: input.mode, ...(url ? { proxyUrl: url } : {}), revision: crypto.randomUUID() };
 }
 async function tunnel(host, port, url, signal) {
-  if (signal?.aborted) throw new Error('网络请求已取消');
+  const cancelled = () => Object.assign(new Error('网络请求已取消'), { code: 'ABORT_ERR' });
+  if (signal?.aborted) throw cancelled();
   const proxy = proxyOptions(url);
+  const raw = new net.Socket();
+  const abort = () => raw.destroy(cancelled());
+  signal?.addEventListener('abort', abort, { once: true });
+  const timer = setTimeout(() => raw.destroy(Object.assign(new Error('代理连接超时'), { code: 'ETIMEDOUT' })), 10000);
+  // Keep an error listener while ownership moves from TCP to the SOCKS handshake.
+  raw.on('error', () => {});
   try {
+    await new Promise((resolve, reject) => {
+      raw.once('error', reject);
+      raw.connect(proxy.proxyPort, proxy.proxyHost, resolve);
+      if (signal?.aborted) abort();
+    });
     const { socket } = await require('socks').SocksClient.createConnection({ command: 'connect', timeout: 10000,
+      existing_socket: raw,
       proxy: { host: proxy.proxyHost, port: proxy.proxyPort, type: 5, userId: proxy.proxyUsername, password: proxy.proxyPassword },
       destination: { host: host.replace(/^\[|\]$/g, ''), port: Number(port) } });
-    if (signal?.aborted) { socket.destroy(); throw new Error('cancelled'); }
+    if (signal?.aborted) { socket.destroy(); throw cancelled(); }
     return socket;
-  } catch { throw Object.assign(new Error('SOCKS5 代理连接失败，请检查代理端口、认证和节点 TCP 支持'), { code: 'EPROXY' }); }
+  } catch {
+    raw.destroy();
+    if (signal?.aborted) throw cancelled();
+    throw Object.assign(new Error('SOCKS5 代理连接失败，请检查代理端口、认证和节点 TCP 支持'), { code: 'EPROXY' });
+  } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 async function secureTunnel(host, port, url, { address = host, signal } = {}) {
   const raw = await tunnel(address, port, url, signal);
@@ -55,19 +72,24 @@ async function secureTunnel(host, port, url, { address = host, signal } = {}) {
   });
 }
 let cached;
-function dispatcher() {
-  const config = current(), url = proxyUrl();
-  const key = config.mode === 'inherit' && !url ? 'inherit' : url || 'direct';
-  if (cached?.key === key) return cached.agent;
-  cached?.agent?.close().catch(() => {});
-  if (key === 'inherit') { cached = { key }; return undefined; }
+function createDispatcher(config, signal) {
+  const url = config.mode === 'socks5' ? config.proxyUrl : '';
+  proxyOptions(url);
+  if (config.mode === 'inherit') return undefined;
   const { Agent } = require('undici');
-  const agent = url ? new Agent({ connect(options, callback) {
+  return url ? new Agent({ connect(options, callback) {
     const host = options.hostname.replace(/^\[|\]$/g, '');
     const port = Number(options.port) || (options.protocol === 'https:' ? 443 : 80);
-    const opening = options.protocol === 'https:' ? secureTunnel(host, port, url) : tunnel(host, port, url);
+    const opening = options.protocol === 'https:' ? secureTunnel(host, port, url, { signal }) : tunnel(host, port, url, signal);
     opening.then(socket => callback(null, socket), error => callback(error, null));
   } }) : new Agent();
+}
+function dispatcher() {
+  const config = current();
+  const key = config.mode === 'socks5' ? proxyUrl() : config.mode;
+  if (cached?.key === key) return cached.agent;
+  cached?.agent?.close().catch(() => {});
+  const agent = createDispatcher(config);
   cached = { key, agent }; return agent;
 }
 function fetchNetwork(url, options) {
@@ -125,4 +147,4 @@ function gitSettings(env) {
   const value = url ? url.replace(/^socks5:/, 'socks5h:') : '';
   return [['http.proxy', value], ['http.https://github.com/.proxy', value], ['http.https://gitlab.com/.proxy', value]];
 }
-module.exports = { configure, current, proxyUrl, record, mutation, tunnel, secureTunnel, fetchNetwork, aiAgent, databaseStream, gitSettings };
+module.exports = { configure, current, proxyUrl, record, mutation, tunnel, secureTunnel, createDispatcher, fetchNetwork, aiAgent, databaseStream, gitSettings };

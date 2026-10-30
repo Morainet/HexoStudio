@@ -10,5 +10,5 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  external_node_modules = ["pg", "mysql2", "mongodb", "markdown-it", "sql.js", "yaml"]
+  external_node_modules = ["pg", "mysql2", "mongodb", "markdown-it", "katex", "sql.js", "yaml"]
   included_files = ["public/**"]

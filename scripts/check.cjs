@@ -6,7 +6,7 @@ const root = resolve(__dirname, '..');
 function checkDirectory(directory) {
   for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
     const file = join(directory, entry.name);
-    if (entry.isDirectory()) checkDirectory(file);
+    if (entry.isDirectory() && file !== join('public', 'vendor')) checkDirectory(file);
     else if (/\.(?:cjs|mjs|js)$/.test(entry.name)) {
       const result = spawnSync(process.execPath, ['--check', join(root, file)], { stdio: 'inherit' });
       if (result.error) throw result.error;

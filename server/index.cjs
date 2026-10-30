@@ -79,10 +79,13 @@ function sameOrigin(req) {
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
   const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'network.js': 'text/javascript', 'article-fields.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
+  Object.assign(types, require('../public/preview-assets.json').files, { 'rich-preview.js': 'text/javascript', 'diagram-preview.html': 'text/html', 'diagram-preview.js': 'text/javascript', 'diagram-preview.css': 'text/css' });
   if (!Object.hasOwn(types, name)) return send(res, 404, { error: '未找到页面' });
   res.writeHead(200, {
     'Content-Type': types[name].startsWith('text/') ? `${types[name]}; charset=utf-8` : types[name],
-    'Content-Security-Policy': "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+    'Content-Security-Policy': name === 'diagram-preview.html'
+      ? "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src data:; font-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
+      : "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     'Cache-Control': 'no-cache'
@@ -133,6 +136,7 @@ async function handle(req, res) {
     }
     if (!authorized(req)) return send(res, 401, { error: '请先登录' });
     if (req.method !== 'GET' && !tokenAuthorized(req)) auth.checkCsrf(req);
+    if (url.pathname === '/api/network/test' && req.method === 'POST') return send(res, 200, await require('./network-check.cjs').check(await body(req)));
     if (url.pathname === '/api/network/settings') {
       if (req.method === 'GET') return send(res, 200, network.record());
       if (req.method === 'PUT') {

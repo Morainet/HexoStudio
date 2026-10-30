@@ -148,7 +148,7 @@ function schedulePreview(delay = 280) {
   state.previewTimer = setTimeout(async () => {
     try {
       const result = await api('preview', { method: 'POST', data: { content: $('#editor')?.value || state.editorBuffer || '' } });
-      if (version === state.previewVersion && $('#preview')) $('#preview').innerHTML = result.html;
+      if (version === state.previewVersion && $('#preview')) { $('#preview').innerHTML = result.html; window.RichPreview?.enhance($('#preview')); }
     } catch (error) { if (version === state.previewVersion && $('#preview')) $('#preview').textContent = t`预览失败：${error.message}`; }
   }, delay);
 }

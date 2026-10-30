@@ -1,6 +1,23 @@
 /* Source-language keys keep UI translations separate from blog content. */
 const HexoI18n = (() => {
   const english = {
+  "图表过多或过长，已显示源码。": "Diagram limit exceeded. Showing source instead.",
+  "Mermaid 图表": "Mermaid diagram",
+  "查看图表源码": "View diagram source",
+
+  "连接成功，耗时 {0} 毫秒；测试未更改已保存配置。": "Connected in {0} ms. Saved settings were not changed.",
+  "正在测试连接…": "Testing connection\u2026",
+  "测试 GitHub API 的 HTTPS 连通性；数据库权限、IP 访问列表和 AI 模型需分别验证。": "Tests HTTPS connectivity to the GitHub API. Check database permissions, IP access lists and AI models separately.",
+  "代理连接失败，请检查端口、认证和节点 TCP 支持": "Proxy connection failed. Check the port, credentials and node TCP support.",
+  "DNS 解析失败，请检查系统 DNS": "DNS lookup failed. Check system DNS.",
+  "证书校验失败，请检查系统时间、证书和代理规则": "Certificate validation failed. Check system time, certificates and proxy rules.",
+  "连接测试超时，请检查网络或更换节点": "Connection test timed out. Check your network or try another node.",
+  "目标服务拒绝请求，请检查节点或稍后重试": "The target service rejected the request. Check the node or try again later.",
+  "网络连接失败，请检查网络、代理和防火墙": "Network connection failed. Check your network, proxy and firewall.",
+  "连接成功，耗时 {0} 毫秒；当前配置尚未保存。": "Connected in {0} ms. These settings have not been saved yet.",
+  "连接成功，耗时 {0} 毫秒。": "Connected in {0} ms.",
+  "请稍后再测试连接": "Please wait before testing again",
+
   "网络设置": "Network settings",
   "正在读取网络设置…": "Loading network settings\u2026",
   "统一用于仓库、AI、更新、Git 和数据库连接。数据库单独填写的代理优先。": "Applies to repositories, AI, updates, Git and databases. A database-specific proxy takes priority.",

@@ -1,6 +1,12 @@
 const MarkdownIt = require('markdown-it');
 
 const markdown = new MarkdownIt({ html: false, linkify: true, breaks: true, typographer: true });
+markdown.use(require('./math-preview.cjs'));
+const fence = markdown.renderer.rules.fence;
+markdown.renderer.rules.fence = (tokens, index, options, env, self) => {
+  if (tokens[index].info.trim().toLowerCase() !== 'mermaid') return fence(tokens, index, options, env, self);
+  return `<pre class="mermaid-source"><code>${markdown.utils.escapeHtml(tokens[index].content)}</code></pre>\n`;
+};
 const defaultLinkOpen = markdown.renderer.rules.link_open || ((tokens, index, options, env, self) => self.renderToken(tokens, index, options));
 markdown.renderer.rules.link_open = (tokens, index, options, env, self) => {
   tokens[index].attrSet('target', '_blank');
@@ -14,7 +20,7 @@ function renderPreview(content) {
     throw new Error('预览内容无效或超过 5 MB');
   }
   const body = content.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
-  return markdown.render(body);
+  return markdown.render(body, {});
 }
 
 module.exports = { renderPreview };

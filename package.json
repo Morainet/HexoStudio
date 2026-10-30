@@ -37,6 +37,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
+    "preview:assets": "node scripts/prepare-preview-assets.cjs",
     "web": "node bin/hs.cjs start",
     "start": "node bin/hs.cjs start",
     "desktop": "electron desktop/main.cjs",
@@ -50,6 +51,7 @@
     "package:win": "electron-builder --win --x64"
   },
   "dependencies": {
+    "katex": "^0.19.1",
     "markdown-it": "14.3.3",
     "mongodb": "^6.21.0",
     "mysql2": "^3.24.6",
@@ -61,7 +63,8 @@
   },
   "devDependencies": {
     "electron": "45.0.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "mermaid": "^12.2.0"
   },
   "build": {
     "appId": "dev.hexostudio.app",

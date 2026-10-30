@@ -24,11 +24,14 @@ async function verify() {
   try {
     const [packed] = JSON.parse(run(['pack', '--json', '--ignore-scripts', '--pack-destination', temporary], root));
     const names = packed.files.map(file => file.path);
+    const previewAssets = require('../public/preview-assets.json').files;
+    for (const name of ['public/preview-assets.json', 'public/rich-preview.js', 'public/diagram-preview.html', ...Object.keys(previewAssets).map(name => `public/${name}`)]) assert.ok(names.includes(name), `Missing preview asset: ${name}`);
     for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'public/favicon.svg', 'public/favicon.ico', 'public/favicon-32.png', 'public/icon-192.png', 'public/apple-touch-icon.png', 'LICENSE', 'README.md', 'CHANGELOG.md', 'package.json']) {
       assert.ok(names.includes(required), `Missing package file: ${required}`);
     }
     for (const name of names) {
-      assert.match(name, /^(?:bin\/[^/]+\.cjs|server\/[^/]+\.cjs|public\/[^/]+\.(?:html|js|css|png|ico|svg)|docs\/[^/]+\.md|README\.md|CHANGELOG\.md|LICENSE|package\.json)$/,
+      if (Object.hasOwn(previewAssets, name.replace(/^public\//, ''))) continue;
+      assert.match(name, /^(?:bin\/[^/]+\.cjs|server\/[^/]+\.cjs|public\/(?:preview-assets\.json|[^/]+\.(?:html|js|css|png|ico|svg))|docs\/[^/]+\.md|README\.md|CHANGELOG\.md|LICENSE|package\.json)$/,
         `Unexpected package file: ${name}`);
     }
     const installation = path.join(temporary, 'installation');
@@ -43,6 +46,8 @@ async function verify() {
     assert.deepEqual(manifest.bin, { hs: 'bin/hs.cjs' });
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron')), false);
     assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'electron-builder')), false);
+    assert.equal(fs.existsSync(path.join(installation, 'node_modules', 'mermaid')), false);
+    assert.match(require(path.join(installed, 'server/preview.cjs')).renderPreview('$E=mc^2$'), /class="katex"/);
     const fields = require(path.join(installed, 'server/article-fields.cjs'));
     assert.equal(fields.inspect('---\ncover: /cover.jpg\n---\nBody')[0].value, '/cover.jpg');
     const service = require(path.join(installed, 'server/cli-service.cjs'));
@@ -60,7 +65,7 @@ async function verify() {
     assert.equal(diagnostics.ok, true);
     assert.ok(diagnostics.checks.some(check => check.id === 'settings'));
     await smokeCli(path.join(installed, manifest.bin.hs), runtime);
-    const destination = path.join(root, 'dist', 'npm');
+    const destination = process.env.HEXOSTUDIO_PACKAGE_OUTPUT || path.join(root, 'dist', 'npm');
     fs.mkdirSync(destination, { recursive: true });
     fs.copyFileSync(path.join(temporary, packed.filename), path.join(destination, packed.filename));
     console.log(`Verified ${packed.filename}: ${names.length} files, ${packed.size} bytes; clean install, CLI, HTTP and shutdown passed.`);

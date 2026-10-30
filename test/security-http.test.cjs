@@ -29,6 +29,14 @@ test('HTTP config routes reject anonymous writes, cross-site writes and external
     fs.rmSync(temporary, { recursive: true, force: true });
   });
   const { server, url } = await require('../server/index.cjs').startServer(0);
+  const diagram = await fetch(`${url}/diagram-preview.html`);
+  assert.equal(diagram.status, 200); assert.match(diagram.headers.get('content-security-policy'), /default-src 'none'/);
+  assert.match(diagram.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+  for (const [asset, type] of [['vendor/mermaid/mermaid.min.js', /javascript/], ['vendor/katex/katex.min.css', /text\/css/], ['vendor/katex/fonts/KaTeX_Main-Regular.woff2', /font\/woff2/]]) {
+    const response = await fetch(`${url}/${asset}`, { method: 'HEAD' });
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-type'), type);
+  }
+  assert.equal((await fetch(`${url}/vendor/katex/package.json`)).status, 404);
   t.after(() => new Promise((resolve, reject) => {
     server.close(error => error ? reject(error) : resolve());
     server.closeAllConnections();

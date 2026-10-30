@@ -19,12 +19,15 @@ test('network settings reject anonymous and foreign-origin writes and never retu
   t.after(() => { server.closeAllConnections(); server.close(); });
   const endpoint = `${url}/api/network/settings`;
   assert.equal((await fetch(endpoint)).status, 401);
+  assert.equal((await fetch(`${url}/api/network/test`, { method: 'POST', body: '{}' })).status, 401);
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: url };
   const input = { revision: 'initial', mode: 'socks5', proxyUrl: 'socks5://alice:secret@127.0.0.1:7890' };
   const login = await fetch(`${url}/api/auth/login`, { method: 'POST', headers: { Origin: url, 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'test-admin', password: 'network-test-password' }) });
   assert.equal(login.status, 200);
   const cookie = login.headers.get('set-cookie').split(';')[0]; await login.json();
   assert.equal((await fetch(endpoint, { method: 'PUT', headers: { Cookie: cookie, Origin: url, 'Content-Type': 'application/json' }, body: JSON.stringify(input) })).status, 403, 'session writes require CSRF');
+  assert.equal((await fetch(`${url}/api/network/test`, { method: 'POST', headers: { Cookie: cookie, Origin: url, 'Content-Type': 'application/json' }, body: JSON.stringify(input) })).status, 403);
+  assert.equal((await fetch(`${url}/api/network/test`, { method: 'POST', headers: { ...headers, Origin: 'https://foreign.example' }, body: JSON.stringify(input) })).status, 403);
   assert.equal((await fetch(endpoint, { method: 'PUT', headers: { ...headers, Origin: 'https://foreign.example' }, body: JSON.stringify(input) })).status, 403);
   const saved = await fetch(endpoint, { method: 'PUT', headers, body: JSON.stringify(input) });
   assert.equal(saved.status, 200); const result = await saved.json();
