@@ -120,8 +120,8 @@ function parseStatus(raw) {
     const item = parts[i];
     const index = item.slice(0, 2);
     const file = item.slice(3);
-    if (index.includes('R') || index.includes('C')) i++;
-    changes.push({ path: file, index, staged: index[0] !== ' ' && index[0] !== '?', unstaged: index[1] !== ' ' });
+    const originalPath = index.includes('R') || index.includes('C') ? parts[++i] : undefined;
+    changes.push({ path: file, ...(originalPath ? { originalPath } : {}), index, staged: index[0] !== ' ' && index[0] !== '?', unstaged: index[1] !== ' ', conflicted: ['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'].includes(index) });
   }
   return changes;
 }
@@ -143,17 +143,22 @@ function displayRemote(remote) {
 async function status(root, connection) {
   const repoDir = await repositoryRoot(root);
   if (!repoDir) return { isRepository: false };
-  const [branch, raw, remote] = await Promise.all([
+  const [branch, raw, remote, upstream, recent, hasHead] = await Promise.all([
     runGit(repoDir, ['branch', '--show-current']),
     runGit(repoDir, ['status', '--porcelain=v1', '-z', '--untracked-files=all']),
-    runGit(repoDir, ['remote', 'get-url', 'origin']).catch(() => '')
+    runGit(repoDir, ['remote', 'get-url', 'origin']).catch(() => ''),
+    runGit(repoDir, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}']).catch(() => ''),
+    runGit(repoDir, ['log', '-8', '-z', '--format=%H%x00%h%x00%ct%x00%s']).catch(() => ''),
+    runGit(repoDir, ['rev-parse', '--verify', 'HEAD']).then(() => true, () => false)
   ]);
   let ahead = 0; let behind = 0;
   try {
     const counts = await runGit(repoDir, ['rev-list', '--left-right', '--count', 'HEAD...@{upstream}']);
     [ahead, behind] = counts.split(/\s+/).map(Number);
   } catch { /* branch has no upstream */ }
-  return { isRepository: true, branch, changes: parseStatus(raw), ahead, behind, remote: displayRemote(remote), managed: Boolean(connection?.type === 'remote') };
+  const fields = recent.split('\0'), commits = [];
+  for (let i = 0; i + 3 < fields.length; i += 4) commits.push({ hash: fields[i], shortHash: fields[i + 1], timestamp: Number(fields[i + 2]) * 1000, subject: fields[i + 3] });
+  return { isRepository: true, branch, upstream, hasHead, commits, changes: parseStatus(raw), ahead, behind, remote: displayRemote(remote), managed: Boolean(connection?.type === 'remote') };
 }
 
 async function stage(root, paths, connection) {
@@ -162,7 +167,8 @@ async function stage(root, paths, connection) {
   const current = parseStatus(await runGit(repoDir, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   const available = new Set(current.filter(item => item.unstaged).map(item => item.path));
   if (!Array.isArray(paths) || !paths.length || paths.length > 1000 || paths.some(item => typeof item !== 'string' || !available.has(item))) throw new Error('请选择有效的变更文件');
-  await runGit(repoDir, ['add', '-A', '--', ...paths.map(literalPath)]);
+  const targets = [...new Set(paths.flatMap(file => { const item = current.find(change => change.path === file); return item?.originalPath && item.index[1] === 'R' ? [file, item.originalPath] : [file]; }))];
+  await runGit(repoDir, ['add', '-A', '--', ...targets.map(literalPath)]);
   return status(root, connection);
 }
 
@@ -171,7 +177,10 @@ async function unstage(root, file, connection) {
   if (!repoDir) throw new Error('当前项目不在 Git 仓库中');
   const current = parseStatus(await runGit(repoDir, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
   if (typeof file !== 'string' || !current.some(item => item.path === file && item.staged)) throw new Error('请选择已暂存的文件');
-  await runGit(repoDir, ['restore', '--staged', '--', literalPath(file)]);
+  const hasHead = await runGit(repoDir, ['rev-parse', '--verify', 'HEAD']).then(() => true, () => false);
+  const change = current.find(item => item.path === file);
+  const paths = [file, ...(change.originalPath ? [change.originalPath] : [])].map(literalPath);
+  await runGit(repoDir, hasHead ? ['restore', '--staged', '--', ...paths] : ['rm', '--cached', '-f', '--', ...paths]);
   return status(root, connection);
 }
 
@@ -191,7 +200,7 @@ async function diff(root, file, area) {
   } else {
     const args = ['diff', '--no-ext-diff', '--no-textconv', '--no-color', '--unified=3'];
     if (area === 'staged') args.push('--cached');
-    args.push('--', literalPath(file));
+    args.push('--', literalPath(file), ...(change.originalPath ? [literalPath(change.originalPath)] : []));
     content = await runGit(repoDir, args);
   }
   return { path: file, area, content: content.slice(0, 120_000) || '没有可显示的文本差异。', truncated: content.length > 120_000 };
@@ -221,7 +230,11 @@ async function sync(root, connection, action) {
     if (changes.length) throw new Error('工作区有未提交的变更，请先提交后再拉取');
     await runGit(repoDir, ['pull', '--ff-only'], connection);
   } else if (action === 'push') {
-    await runGit(repoDir, ['push'], connection);
+    const branch = await runGit(repoDir, ['branch', '--show-current']);
+    if (!branch) throw new Error('当前为分离的 HEAD，请先在 Git 中切换到分支');
+    const upstream = await runGit(repoDir, ['rev-parse', '--abbrev-ref', '@{upstream}']).catch(() => '');
+    if (!upstream) await runGit(repoDir, ['push', '--set-upstream', 'origin', `HEAD:refs/heads/${branch}`], connection);
+    else await runGit(repoDir, ['push'], connection);
   } else throw new Error('不支持的 Git 操作');
   return status(root, connection);
 }

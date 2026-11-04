@@ -77,6 +77,13 @@ function patch(content,changes) {
 }
 function transform(input) {
   if (!input || typeof input!=='object') throw failure('文章参数请求无效');
+  // Conflict review only needs the same metadata transformation used by saving.
+  if (input.metadataOnly === true) {
+    if (typeof input.content !== 'string' || Buffer.byteLength(input.content) > 5_000_000) throw failure('文章内容无效或超过 5 MB');
+    const content = updateFrontmatter(input.content, input.metadata || {});
+    if (Buffer.byteLength(content) > 5_000_000) throw failure('文章内容超过 5 MB');
+    return { content, meta: require('./core.cjs').parsePost(content, '') };
+  }
   // Validate before merging basic sidebar edits, so a broken header is never duplicated.
   split(input.content);
   const merged=updateFrontmatter(input.content,input.metadata||{});

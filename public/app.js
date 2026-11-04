@@ -47,6 +47,7 @@ function toast(message, tone = 'success') {
 function modal(content) {
   if (state.modalBusy) return false;
   if ($('#modal').classList.contains('hidden')) modal.previousFocus = document.activeElement;
+  modal.beforeClose = null;
   state.dialogVersion = (state.dialogVersion || 0) + 1;
   $('#modal-content').innerHTML = content;
   $('#modal-feedback').textContent = '';
@@ -59,6 +60,8 @@ function modal(content) {
 }
 function closeModal(force = false) {
   if (force !== true && (state.connecting || state.modalBusy)) return;
+  if (force !== true && modal.beforeClose && modal.beforeClose() === false) return;
+  modal.beforeClose = null;
   state.dialogVersion = (state.dialogVersion || 0) + 1;
   $('#modal').classList.add('hidden'); $('#modal-content').innerHTML = '';
   $('#modal-feedback').classList.add('hidden');
@@ -248,7 +251,7 @@ function editorPage() {
   if (!post) return navigate('posts');
   const label = post.kind === 'draft' ? t("草稿") : post.kind === 'page' ? t("页面") : t("文章");
   $('#view').innerHTML = `${pageHead(post.kind === 'draft' ? 'DRAFT EDITOR' : post.kind === 'page' ? 'PAGE EDITOR' : 'EDITOR', escapeHTML(state.metadataValues.title || fullName(post.path)), `${label} · ${escapeHTML(post.path)}`, `<span id="editor-status" class="editor-status">${t("所有更改已保存")}</span><button id="back-posts" class="secondary">${t("返回列表")}</button>${post.kind === 'draft' ? `<button id="publish-draft" class="secondary">${t("发布草稿")}</button>` : ''}<button id="save-post" class="primary">${t`保存${label}`}</button>`)}
-    <div class="editor-layout"><section class="panel editor-panel"><div class="editor-tabs"><button class="active" data-editor-tab="write">Markdown</button><button data-editor-tab="preview">${t("实时预览")}</button></div><div class="editor-toolbar" aria-label="${t("编辑工具")}"><button type="button" data-insert="bold" title="${t("加粗")}">B</button><button type="button" data-insert="italic" title="${t("斜体")}"><i>I</i></button><button type="button" data-insert="heading" title="${t("二级标题")}">H₂</button><button type="button" data-insert="link" title="${t("链接")}">${icon('link')}</button><span class="toolbar-separator"></span><button type="button" id="upload-image" title="${t("上传图片到博客")}">${icon('upload')} ${t("上传图片")}</button><button type="button" data-ai-write="editor">${icon('sparkles')} ${t("AI 写作")}</button><button type="button" id="media-toggle" title="${t("选择已上传的图片")}">${icon('image')} ${t("图片库")}</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><small>${t("可粘贴或拖入图片")}</small></div><div id="media-library" class="media-library hidden"><div class="media-head"><strong>${t("已上传图片")}</strong><span>${t`点击图片插入${label}`}</span></div><div id="media-list" class="media-grid">${t("加载中…")}</div></div><textarea id="editor" class="editor-textarea" spellcheck="false" aria-label="${t`Markdown ${label}内容`}"></textarea><div id="preview" class="preview hidden">${t("正在生成预览…")}</div></section>
+    <div class="editor-layout"><section class="panel editor-panel"><div class="editor-tabs"><button class="active" data-editor-tab="write">Markdown</button><button data-editor-tab="preview">${t("实时预览")}</button></div><div class="editor-toolbar" aria-label="${t("编辑工具")}"><button type="button" data-insert="bold" title="${t("加粗")}">B</button><button type="button" data-insert="italic" title="${t("斜体")}"><i>I</i></button><button type="button" data-insert="heading" title="${t("二级标题")}">H₂</button><button type="button" data-insert="link" title="${t("链接")}">${icon('link')}</button><select id="editor-snippet" aria-label="${t('插入 Markdown')}" title="${t('插入 Markdown')}"><option value="">${t('插入…')}</option><option value="code">${t('代码块')}</option><option value="table">${t('表格')}</option><option value="mermaid">Mermaid</option><option value="math">${t('数学公式')}</option></select><button type="button" id="editor-find-toggle" title="${t('查找替换')} (Ctrl/⌘ F)" aria-label="${t('查找替换')}" aria-controls="editor-find-panel" aria-expanded="false">${icon('search')}</button><span class="toolbar-separator"></span><button type="button" id="upload-image" title="${t("上传图片到博客")}">${icon('upload')} ${t("上传图片")}</button><button type="button" data-ai-write="editor">${icon('sparkles')} ${t("AI 写作")}</button><button type="button" id="media-toggle" title="${t("选择已上传的图片")}">${icon('image')} ${t("图片库")}</button><input id="image-file" type="file" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden><small>${t("可粘贴或拖入图片")}</small></div>${EditorTools.markup(t)}<div id="media-library" class="media-library hidden"><div class="media-head"><strong>${t("已上传图片")}</strong><span>${t`点击图片插入${label}`}</span></div><div id="media-list" class="media-grid">${t("加载中…")}</div></div><textarea id="editor" class="editor-textarea" spellcheck="false" aria-label="${t`Markdown ${label}内容`}"></textarea><div id="preview" class="preview hidden">${t("正在生成预览…")}</div></section>
     <aside class="panel meta-panel"><h3>${t`${label}信息`}</h3><label for="meta-title">${t("标题")}</label><input id="meta-title" data-meta="title" value="${escapeHTML(state.metadataValues.title)}" maxlength="300"><label for="meta-date">${t("日期")}</label><input id="meta-date" data-meta="date" value="${escapeHTML(state.metadataValues.date)}" placeholder="YYYY-MM-DD HH:mm:ss">${post.kind === 'page' ? '' : `<label for="meta-tags">${t("标签")}</label><input id="meta-tags" data-meta="tags" value="${escapeHTML(state.metadataValues.tags)}" placeholder="${t("用逗号分隔")}"><label for="meta-categories">${t("分类")}</label><input id="meta-categories" data-meta="categories" value="${escapeHTML(state.metadataValues.categories)}" placeholder="${t("用逗号分隔")}">`}<div class="article-fields-entry"><button id="article-fields-open" class="secondary" type="button">${icon('image')} ${t("封面与自定义参数")}</button><p>${t("设置封面、摘要、置顶及主题专属参数。")}</p></div><label>${t("文件路径")}</label><div class="meta-value">${escapeHTML(post.path)}</div><div class="hint-card">${t`修改${label}信息时只更新对应字段；主题自定义字段保持原样。也可以直接编辑文首的 YAML。`}</div></aside></div>`;
   $('#editor').value = state.editorBuffer ?? post.content;
   $('#editor').oninput = setEditorDirty;
@@ -273,6 +276,18 @@ function editorPage() {
     $('#preview').classList.toggle('hidden', !preview);
     if (preview) schedulePreview(0);
   });
+  $('#editor-snippet').onchange = event => {
+    const kind = event.target.value; event.target.value = '';
+    if (!kind || state.saving || state.uploading) return;
+    const range = state.editorSelection;
+    const selected = range ? $('#editor').value.slice(range.start, range.end) : '';
+    const snippet = EditorTools.snippet(kind, selected, t);
+    if (snippet) insertAtCursor(snippet.text, snippet.start, snippet.end);
+  };
+  EditorTools.attach({ editor: $('#editor'), t, changed: setEditorDirty, remember: rememberEditorSelection,
+    writable: () => !state.saving && !state.uploading,
+    showWrite: () => { if ($('#editor').classList.contains('hidden')) document.querySelector('[data-editor-tab="write"]').click(); }
+  });
   $('#back-posts').onclick = () => navigate(post.kind === 'page' ? 'pages' : 'posts');
   $('#save-post').onclick = savePost;
   if (post.kind === 'draft') $('#publish-draft').onclick = () => requestPublish(post.path);
@@ -283,7 +298,7 @@ function insertAtCursor(text, selectStart = 0, selectEnd = 0) {
   const editor = $('#editor');
   const start = state.editorSelection?.start ?? editor.value.length;
   const end = state.editorSelection?.end ?? start;
-  editor.setRangeText(text, start, end, 'end');
+  EditorTools.replaceRange(editor, start, end, text);
   editor.focus();
   if (selectEnd > selectStart) editor.setSelectionRange(start + selectStart, start + selectEnd);
   rememberEditorSelection();
@@ -389,57 +404,139 @@ function cloudRepositoryPage(deploy = false) {
   const host = connection.provider === 'github' ? 'github.com' : 'gitlab.com';
   const url = `https://${host}/${connection.repository.split('/').map(encodeURIComponent).join('/')}`;
   const pipeline = url + (connection.provider === 'github' ? '/actions' : '/-/pipelines');
-  $('#view').innerHTML = `${pageHead('CLOUD', deploy ? t("构建与部署") : t("Git 仓库"), escapeHTML(`${connection.repository} · ${connection.branch}`))}<section class="panel"><h3>${t("保存即提交")}</h3><p>${t("每次内容变更都会生成仓库提交，无需暂存或推送。请在博客仓库配置自动构建，提交后由流水线更新站点。")}</p><div class="actions"><a class="secondary" href="${url}" target="_blank" rel="noopener noreferrer">${t("打开仓库")}</a><a class="primary" href="${pipeline}" target="_blank" rel="noopener noreferrer">${t("查看部署流水线")}</a></div></section>`;
+  const commits = url + (connection.provider === 'github' ? '/commits/' : '/-/commits/') + encodeURIComponent(connection.branch);
+  $('#view').innerHTML = `${pageHead('CLOUD', deploy ? t('构建与部署') : t('Git 仓库'), t('云端保存直接提交到当前分支。'))}
+    <section class="panel git-summary"><div><small>${t('远端仓库')}</small><strong>${escapeHTML(connection.repository)}</strong></div><div><small>${t('当前分支')}</small><strong>${escapeHTML(connection.branch)}</strong></div><div><small>${t('博客路径')}</small><strong>${escapeHTML(connection.blogPath || '/')}</strong></div></section>
+    <section class="panel cloud-publish-flow"><h3>${t(deploy ? '通过仓库流水线部署' : '内容保存即提交')}</h3><ol><li>${t('在工作台编辑并保存内容')}</li><li>${t('变更提交到当前仓库分支')}</li><li>${t('由仓库流水线构建并发布站点')}</li></ol><p class="workflow-note">${t('保存成功仅代表源码已提交，部署结果请在流水线中确认。云端不运行本机 Hexo 命令。')}</p><div class="actions"><a class="secondary" href="${url}" target="_blank" rel="noopener noreferrer">${t('打开仓库')}</a><a class="secondary" href="${commits}" target="_blank" rel="noopener noreferrer">${t('查看分支提交')}</a><a class="primary" href="${pipeline}" target="_blank" rel="noopener noreferrer">${t('查看部署流水线')}</a></div></section>`;
+}
+function commandStatusText() {
+  const task = state.commandTask;
+  if (!task) return state.busy ? t('正在启动…') : t('尚未运行任务');
+  const labels = { running: t('运行中'), succeeded: t('已完成'), failed: t('运行失败'), cancelled: t('已停止') };
+  const elapsed = Math.max(0, Math.floor(((task.finishedAt || Date.now()) - task.startedAt) / 1000));
+  return `${labels[task.status] || t('状态未知')} · ${task.step ? `hexo ${task.step} · ` : ''}${t`${elapsed} 秒`}`;
+}
+function updateCommandStatus() {
+  clearTimeout(state.commandClock);
+  if (state.view !== 'deploy' || !$('#command-state')) return;
+  $('#command-state').textContent = commandStatusText();
+  if (state.busy) state.commandClock = setTimeout(updateCommandStatus, 1000);
 }
 function deployPage() {
   if (state.cloud) return cloudRepositoryPage(true);
-  $('#view').innerHTML = `${pageHead('PUBLISH WORKFLOW', t("构建与部署"), t("运行当前 Hexo 项目中已安装的本地命令。"))}
-    <div class="command-grid"><button class="command-card" data-command="clean"><span class="command-icon">${icon('settings')}</span><strong>${t("清理缓存")}</strong><small>${t("hexo clean · 清理生成文件与缓存")}</small></button><button class="command-card" data-command="generate"><span class="command-icon">${icon('pages')}</span><strong>${t("生成静态站点")}</strong><small>${t("hexo generate · 输出到 public 目录")}</small></button><button class="command-card" data-command="deploy"><span class="command-icon">${icon('rocket')}</span><strong>${t("部署博客")}</strong><small>${t("hexo deploy · 使用项目当前部署配置")}</small></button></div>
-    <section class="panel"><div class="panel-title"><h3>${t("运行日志")}</h3><button id="clear-log">${t("清空日志")}</button></div><div id="terminal" class="terminal" role="log" aria-label="${t("构建日志")}">${escapeHTML(state.commandLog || t("准备就绪。选择上方操作以运行 Hexo 命令。"))}</div></section>`;
-  document.querySelectorAll('[data-command]').forEach(button => { button.disabled = Boolean(state.busy); button.onclick = () => runCommand(button.dataset.command); });
+  const info = state.commandInfo, task = state.commandTask;
+  $('#view').innerHTML = `${pageHead('PUBLISH WORKFLOW', t('构建与部署'), t('生成最新内容，成功后再部署到博客。'), `<button class="primary" data-command="generate-deploy">${icon('rocket')} ${t('生成并部署')}</button>`)}
+    <section class="panel deploy-readiness"><div><strong>${t('项目环境')}</strong><span>${info ? t(info.hexoInstalled ? '已安装 Hexo' : '未安装 Hexo，请先在博客目录执行 npm install') : t('正在检查项目环境…')}</span></div><div><strong>${t('部署方式')}</strong><span>${info?.deployTypes?.length ? escapeHTML(info.deployTypes.join(' / ')) : t('未检测到 deploy.type，请检查站点配置')}</span></div><p>${t('生成并部署会依次运行 generate、deploy；生成失败时不会继续部署。')}</p>${state.commandError ? `<p class="workflow-error" role="alert">${escapeHTML(state.commandError)}</p>` : ''}<button id="command-refresh" class="text-button">${t('刷新任务状态')}</button></section>
+    <div class="command-grid"><button class="command-card" data-command="generate"><span class="command-icon">${icon('pages')}</span><strong>${t('仅生成站点')}</strong><small>hexo generate</small></button><button class="command-card" data-command="deploy"><span class="command-icon">${icon('rocket')}</span><strong>${t('仅部署现有文件')}</strong><small>${t('不会重新生成，请确认生成文件已更新。')}</small></button><button class="command-card" data-command="clean"><span class="command-icon">${icon('settings')}</span><strong>${t('清理缓存')}</strong><small>hexo clean</small></button></div>
+    <section class="panel"><div class="panel-title command-log-title"><div><h3>${t('运行日志')}</h3><span id="command-state" class="command-state" data-status="${escapeHTML(task?.status || '')}" role="status">${escapeHTML(commandStatusText())}</span></div><div class="command-log-actions">${task && task.status !== 'running' ? `<button id="command-retry">${t('再次运行')}</button>` : ''}<button id="command-stop" ${!state.busy || !task?.id || state.commandCancelling ? 'disabled' : ''}>${t(state.commandCancelling ? '正在停止…' : '停止任务')}</button><button id="clear-log">${t('清空显示')}</button></div></div><div id="terminal" class="terminal" role="log" aria-label="${t('构建日志')}">${escapeHTML(state.commandLog || t('准备就绪。选择上方操作以运行 Hexo 命令。'))}</div><p class="workflow-note">${t('刷新页面后可找回当前任务。停止任务无法撤销已完成的部署步骤；服务重启后不保留任务记录。')}</p></section>`;
+  document.querySelectorAll('[data-command]').forEach(button => { button.disabled = Boolean(state.busy || state.gitBusy || info?.hexoInstalled === false); button.onclick = () => runCommand(button.dataset.command); });
+  $('#command-refresh').onclick = () => loadDeploy();
+  $('#command-stop').onclick = () => cancelCommand();
+  if ($('#command-retry')) $('#command-retry').onclick = () => runCommand(task.action);
   $('#clear-log').disabled = Boolean(state.busy);
-  $('#clear-log').onclick = () => { state.commandLog = ''; $('#terminal').textContent = t("日志已清空。"); };
+  $('#clear-log').onclick = () => { state.commandLog = ''; $('#terminal').textContent = t('日志已清空。'); };
+  $('#terminal').scrollTop = $('#terminal').scrollHeight;
+  updateCommandStatus();
+}
+async function loadDeploy() {
+  if (!state.root || state.cloud || state.commandStreaming) return;
+  clearTimeout(state.commandPoll);
+  const root = state.root, request = state.commandRequest = {};
+  try {
+    const result = await api('command/status');
+    if (state.root !== root || state.commandRequest !== request || state.commandStreaming) return;
+    state.commandInfo = result; state.commandError = '';
+    state.commandTask = result.task; state.busy = result.task?.status === 'running';
+    state.commandLog = result.task?.log || '';
+    if (state.view === 'deploy') deployPage();
+    else if (state.view === 'git') render();
+  } catch (error) {
+    if (state.root !== root || state.commandRequest !== request) return;
+    state.commandError = error.message;
+    if (state.view === 'deploy') deployPage();
+  }
+  if (state.root === root && state.busy) state.commandPoll = setTimeout(loadDeploy, 1500);
+}
+async function cancelCommand(confirmed = false) {
+  const task = state.commandTask;
+  if (!task?.id || task.status !== 'running' || state.commandCancelling) return;
+  if (confirmed !== true) {
+    if (!modal(`<h2 id="modal-title">${t('停止任务')}</h2><p>${t('停止当前任务？已完成的部署步骤不会回滚。')}</p><div class="actions"><button id="command-keep-running" class="secondary">${t('继续运行')}</button><button id="command-confirm-stop" class="primary">${t('停止任务')}</button></div>`)) return;
+    $('#command-keep-running').onclick = closeModal;
+    $('#command-confirm-stop').onclick = () => { closeModal(); cancelCommand(true); };
+    return;
+  }
+  const root = state.root;
+  state.commandCancelling = true; deployPage();
+  try { await api('command/cancel', { method: 'POST', data: { id: task.id } }); }
+  catch (error) { if (state.root === root) { state.commandError = error.message; toast(error.message, 'error'); } }
+  finally { state.commandCancelling = false; if (state.view === 'deploy') deployPage(); if (!state.commandStreaming) loadDeploy(); }
 }
 function gitPage() {
   if (state.cloud) return cloudRepositoryPage();
   const git = state.git;
-  if (!git) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t("Git 仓库"), t("正在读取仓库状态…"))}`; return; }
-  if (!git.isRepository) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t("Git 仓库"), t("当前 Hexo 项目不是 Git 仓库。"))}<section class="panel"><p class="muted">${t("可以切换到 GitHub 或 GitLab 远端仓库，或连接已有的本机 Git 仓库。")}</p><button id="git-connect" class="primary">${t("连接仓库")}</button></section>`; $('#git-connect').onclick = showProjectModal; return; }
-  const changed = git.changes.length;
-  const staged = git.changes.filter(item => item.staged).length;
-  $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t("Git 仓库"), t`${escapeHTML(git.branch || t("分离的 HEAD"))} · ${changed} 个变更 · 领先 ${git.ahead} / 落后 ${git.behind}`, `<button id="git-refresh" class="secondary">${t("刷新本机")}</button><button id="git-fetch" class="secondary" ${git.remote ? '' : 'disabled'}>${t("检查远端")}</button><button id="git-pull" class="secondary" ${git.remote ? '' : 'disabled'}>${t("拉取更新")}</button><button id="git-push" class="primary" ${git.remote ? '' : 'disabled'}>${t("推送提交")}</button>`)}
-    <section class="panel git-summary"><div><small>${t("远端仓库")}</small><strong>${escapeHTML(git.remote || t("未配置 origin"))}</strong></div><div><small>${t("连接方式")}</small><strong>${git.managed ? t("Token 连接") : t("本机 Git 仓库")}</strong></div></section>
-    <section class="panel git-files"><div class="panel-title"><h3>${t("文件变更")}</h3><span class="muted">${staged} ${t("个已暂存")}</span></div>${changed ? git.changes.map(item => `<div class="git-file"><input type="checkbox" data-git-path="${escapeHTML(item.path)}" aria-label="${t("暂存")} ${escapeHTML(item.path)}" ${item.unstaged ? '' : 'disabled'}><span class="git-badge ${item.staged ? 'staged' : ''}">${escapeHTML(item.index)}</span><span class="git-file-name">${escapeHTML(item.path)}${item.staged && item.unstaged ? `<small>${t("暂存后又有修改")}</small>` : ''}</span><div class="git-file-actions">${item.unstaged ? `<button data-git-diff="working" data-git-file="${escapeHTML(item.path)}">${t("工作区差异")}</button>` : ''}${item.staged ? `<button data-git-diff="staged" data-git-file="${escapeHTML(item.path)}">${t("暂存差异")}</button><button data-git-unstage="${escapeHTML(item.path)}">${t("取消暂存")}</button>` : ''}</div></div>`).join('') : `<div class="empty">${t("工作区没有变更")}</div>`}<div class="git-actions"><button id="git-stage" class="secondary" ${git.changes.some(item => item.unstaged) ? '' : 'disabled'}>${t("暂存所选文件")}</button></div></section>
-    <section class="panel git-commit"><h3>${t("提交已暂存变更")}</h3><p>${t("只提交已暂存的版本。若文件在暂存后又被修改，工作区差异不会进入本次提交。")}</p><div class="git-commit-row"><input id="git-message" placeholder="${t("填写本次提交说明")}" maxlength="300" value="${escapeHTML(state.gitMessage)}"><button id="git-commit" class="primary" ${staged ? '' : 'disabled'}>${t("创建提交")}</button></div></section>`;
-  if (state.gitBusy) document.querySelectorAll('#view button, #view input').forEach(input => input.disabled = true);
+  if (!git) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t('Git 仓库'), t('正在读取仓库状态…'))}`; return; }
+  if (!git.isRepository) { $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t('Git 仓库'), t('当前 Hexo 项目不是 Git 仓库。'))}<section class="panel"><p class="muted">${t('可以切换到 GitHub 或 GitLab 远端仓库，或连接已有的本机 Git 仓库。')}</p><button id="git-connect" class="primary">${t('连接仓库')}</button></section>`; $('#git-connect').onclick = showProjectModal; return; }
+  const staged = git.changes.filter(item => item.staged), working = git.changes.filter(item => item.unstaged);
+  const conflicts = git.changes.filter(item => item.conflicted).length;
+  state.gitSelectedPaths ||= new Set();
+  const available = new Set(working.map(item => item.path));
+  for (const file of state.gitSelectedPaths) if (!available.has(file)) state.gitSelectedPaths.delete(file);
+  const rows = (items, area) => items.length ? items.map(item => `<div class="git-file">${area === 'working' ? `<input type="checkbox" data-git-path="${escapeHTML(item.path)}" aria-label="${t('选择文件')} ${escapeHTML(item.path)}" ${state.gitSelectedPaths.has(item.path) ? 'checked' : ''}>` : icon('check')}<span class="git-badge ${item.conflicted ? 'conflict' : area === 'staged' ? 'staged' : ''}">${escapeHTML(item.index)}</span><span class="git-file-name">${escapeHTML(item.path)}${item.originalPath ? `<small>${escapeHTML(item.originalPath)} → ${escapeHTML(item.path)}</small>` : ''}${item.conflicted ? `<small>${t('存在合并冲突')}</small>` : item.staged && item.unstaged ? `<small>${t('暂存后又有修改')}</small>` : ''}</span><div class="git-file-actions"><button data-git-diff="${area}" data-git-file="${escapeHTML(item.path)}">${t('查看差异')}</button>${area === 'staged' ? `<button data-git-unstage="${escapeHTML(item.path)}">${t('取消暂存')}</button>` : ''}</div></div>`).join('') : `<div class="git-empty">${t(area === 'staged' ? '尚未暂存文件' : '工作区没有变更')}</div>`;
+  $('#view').innerHTML = `${pageHead('GIT WORKSPACE', t('Git 仓库'), t('查看变更、暂存、提交，再同步到远端。'), `<button id="git-refresh" class="secondary">${t('刷新本机')}</button><button id="git-fetch" class="secondary" ${git.remote ? '' : 'disabled'}>${t('检查远端')}</button><button id="git-pull" class="secondary" ${!git.remote || git.changes.length || !git.upstream || conflicts ? 'disabled' : ''}>${t('拉取更新')}</button><button id="git-push" class="primary" ${!git.remote || !git.branch || !git.hasHead || conflicts ? 'disabled' : ''}>${t(git.upstream ? '推送提交' : '首次推送')}</button>`)}
+    <section class="panel git-summary"><div><small>${t('当前分支')}</small><strong>${escapeHTML(git.branch || t('分离的 HEAD'))}</strong></div><div><small>${t('上游分支')}</small><strong>${escapeHTML(git.upstream || t('尚未关联上游'))}</strong></div><div><small>${t('同步状态')}</small><strong>${git.upstream ? t`领先 ${git.ahead} / 落后 ${git.behind}` : t(git.remote ? '首次推送时自动关联 origin' : '请先配置远端 origin')}</strong></div><div><small>${t('远端仓库')}</small><strong>${escapeHTML(git.remote || t('未配置 origin'))}</strong></div></section>
+    <section class="workflow-notice" role="status">${state.gitBusy ? escapeHTML(state.gitProgress || t('处理中…')) : state.busy ? t('Hexo 命令正在运行，请稍候') : conflicts ? t('请先在 Git 工具中解决冲突，再提交或同步。') : git.ahead && git.behind ? t('本机与远端已分叉，请在 Git 工具中合并后再同步。') : git.changes.length ? t('拉取前需要先提交工作区变更。') : t('远端计数来自本机缓存，点击检查远端获取最新状态。')}</section>
+    ${state.gitFeedback ? `<p class="workflow-feedback ${state.gitFeedbackError ? 'workflow-error' : ''}" role="${state.gitFeedbackError ? 'alert' : 'status'}">${escapeHTML(state.gitFeedback)}</p>` : ''}
+    <div class="git-workspace-grid"><section class="panel git-files"><div class="panel-title"><h3>${t('工作区')} <span class="muted">${working.length}</span></h3><label class="git-select-all"><input id="git-select-all" type="checkbox" ${working.length && working.every(item => state.gitSelectedPaths.has(item.path)) ? 'checked' : ''} ${working.length ? '' : 'disabled'}>${t('全选')}</label></div>${rows(working, 'working')}<div class="git-actions"><span id="git-selected-count" class="muted"></span><button id="git-stage" class="secondary">${t('暂存所选文件')}</button></div></section>
+    <section class="panel git-files"><div class="panel-title"><h3>${t('已暂存')} <span class="muted">${staged.length}</span></h3></div>${rows(staged, 'staged')}<div class="git-commit"><h3>${t('创建提交')}</h3><p>${t('仅提交上方已暂存的版本，不会自动推送。')}</p><label class="sr-only" for="git-message">${t('提交说明')}</label><div class="git-commit-row"><input id="git-message" placeholder="${t('填写本次提交说明')}" maxlength="300" value="${escapeHTML(state.gitMessage)}"><button id="git-commit" class="primary" ${!staged.length || conflicts ? 'disabled' : ''}>${t('创建提交')}</button></div></div></section></div>
+    <section class="panel git-history"><div class="panel-title"><h3>${t('最近提交')}</h3><span class="muted">${t('最近 8 条')}</span></div>${git.commits?.length ? git.commits.map(item => `<div class="git-history-row"><code>${escapeHTML(item.shortHash)}</code><span>${escapeHTML(item.subject)}</span><time>${escapeHTML(new Date(item.timestamp).toLocaleString(HexoI18n.language === 'en' ? 'en-US' : 'zh-CN'))}</time></div>`).join('') : `<p class="muted">${t('还没有提交记录')}</p>`}</section>`;
+  const updateSelection = () => {
+    const checked = document.querySelectorAll('[data-git-path]:checked').length;
+    $('#git-selected-count').textContent = t`已选择 ${checked} 个文件`;
+    $('#git-stage').disabled = !checked || state.gitBusy || state.busy;
+    $('#git-select-all').checked = Boolean(working.length && checked === working.length);
+    $('#git-select-all').indeterminate = checked > 0 && checked < working.length;
+  };
+  document.querySelectorAll('[data-git-path]').forEach(input => input.onchange = () => { input.checked ? state.gitSelectedPaths.add(input.dataset.gitPath) : state.gitSelectedPaths.delete(input.dataset.gitPath); updateSelection(); });
+  $('#git-select-all').onchange = event => { document.querySelectorAll('[data-git-path]').forEach(input => { input.checked = event.target.checked; input.checked ? state.gitSelectedPaths.add(input.dataset.gitPath) : state.gitSelectedPaths.delete(input.dataset.gitPath); }); updateSelection(); };
+  updateSelection();
+  if (state.gitBusy || state.busy || state.gitLoading) document.querySelectorAll('#view button, #view input').forEach(input => input.disabled = true);
   $('#git-refresh').onclick = loadGit;
   $('#git-fetch').onclick = () => gitSync('fetch');
   $('#git-pull').onclick = () => gitSync('pull');
   $('#git-push').onclick = () => gitSync('push');
   $('#git-stage').onclick = gitStage;
   $('#git-message').oninput = event => { state.gitMessage = event.target.value; };
+  $('#git-message').onkeydown = event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !$('#git-commit').disabled) { event.preventDefault(); gitCommit(); } };
   $('#git-commit').onclick = gitCommit;
   document.querySelectorAll('[data-git-diff]').forEach(button => button.onclick = () => showGitDiff(button.dataset.gitFile, button.dataset.gitDiff));
   document.querySelectorAll('[data-git-unstage]').forEach(button => button.onclick = () => gitUnstage(button.dataset.gitUnstage));
 }
 async function loadGit() {
-  if (state.gitBusy) return;
-  const root = state.root;
-  try { const git = await api('git/status'); if (root !== state.root) return; state.git = git; if (state.view === 'git') render(); }
-  catch (error) { if (state.view === 'git' && root === state.root) viewError(t("Git 仓库"), error.message, loadGit); }
+  if (state.gitBusy || state.gitLoading) return;
+  const root = state.root, request = state.gitRequest = {};
+  state.gitLoading = true;
+  if (state.view === 'git') gitPage();
+  try { const git = await api('git/status'); if (root !== state.root || state.gitRequest !== request) return; state.git = git; }
+  catch (error) { if (state.view === 'git' && root === state.root) { state.gitFeedback = error.message; state.gitFeedbackError = true; if (!state.git) viewError(t('Git 仓库'), error.message, loadGit); } }
+  finally { if (state.gitRequest === request) { state.gitLoading = false; if (root === state.root && state.view === 'git' && state.git) render(); } }
 }
 async function gitAction(action, data, message) {
-  if (state.gitBusy) return;
-  if (state.busy) return toast(t("Hexo 命令正在运行，请稍候"));
-  state.gitBusy = true;
-  document.querySelectorAll('#view button, #view input').forEach(input => input.disabled = true);
+  if (state.gitBusy || state.gitLoading) return;
+  if (state.busy) return toast(t('Hexo 命令正在运行，请稍候'));
+  const root = state.root;
+  state.gitBusy = true; state.gitFeedback = '';
+  state.gitProgress = { stage: t('正在暂存文件…'), unstage: t('正在取消暂存…'), commit: t('正在创建提交…'), fetch: t('正在检查远端…'), pull: t('正在拉取更新…'), push: t('正在推送提交…') }[action];
+  if (state.view === 'git') gitPage();
   try {
-    state.git = await api(`git/${action}`, { method: 'POST', data });
+    const result = await api(`git/${action}`, { method: 'POST', data });
+    if (root !== state.root) return;
+    state.git = result;
     if (action === 'commit') state.gitMessage = '';
     if (action === 'pull') { state.configFiles = null; state.configScreen = 'list'; state.config = null; state.configBuffer = null; await refreshPosts(); }
-    toast(message);
-  } catch (error) { toast(error.message, 'error'); }
-  finally { state.gitBusy = false; if (state.view === 'git') render(); }
+    state.gitFeedback = message; state.gitFeedbackError = false; toast(message);
+  } catch (error) { if (root === state.root) { state.gitFeedback = error.message; state.gitFeedbackError = true; toast(error.message, 'error'); } }
+  finally { state.gitBusy = false; if (root === state.root && state.view === 'git') render(); }
 }
 async function gitStage() {
   const paths = [...document.querySelectorAll('[data-git-path]:checked')].map(input => input.dataset.gitPath);
@@ -470,7 +567,7 @@ async function gitCommit() {
 async function gitSync(action) {
   return gitAction(action, undefined, { fetch: t("远端状态已更新"), pull: t("已拉取远端更新"), push: t("提交已推送到远端") }[action]);
 }
-function render() { if (!$('#auth-screen').classList.contains('hidden')) return; updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); DisplayPreferences.place(); }
+function render() { if (state.view !== 'deploy') clearTimeout(state.commandClock); if (!$('#auth-screen').classList.contains('hidden')) return; updateShell(); if (!state.root) return onboarding(); $('#setup-blog-screen').classList.add('hidden'); $('#setup-blog-screen').replaceChildren(); $('#app').classList.remove('hidden'); ({ dashboard, posts: postsPage, pages: pagesPage, editor: editorPage, config: configPage, git: gitPage, deploy: deployPage })[state.view](); DisplayPreferences.place(); }
 function connectionForm() {
   return `<div class="connection-choices" role="group" aria-label="${t("博客来源")}"><button type="button" data-connect-mode="local" class="active" aria-pressed="true">${icon("folder")}<span><strong>${t("本机目录")}</strong><small>${t("管理已有的 Hexo 项目")}</small></span></button><button type="button" data-connect-mode="remote" aria-pressed="false">${icon("git")}<span><strong>GitHub / GitLab</strong><small>${t("使用仓库地址与 Token")}</small></span></button></div>
     <div id="local-fields" class="connection-fields"><p>${t("输入包含")} <code>_config.yml</code> ${t("与")} <code>source/_posts</code> ${t("的项目目录。")}</p><label for="root-input">${t("Hexo 项目目录")}</label><input id="root-input" placeholder="${t("/Users/name/blog 或 C:\\Users\\name\\blog")}"><div class="connect-actions"><button id="connect-project" class="primary">${t("连接本机项目")}</button><button id="browse-project" class="secondary hidden">${t("浏览目录…")}</button></div></div>
@@ -525,6 +622,7 @@ async function connectBlog(remote) {
   try {
     const result = await api(remote ? 'remote/connect' : 'project', { method: 'POST', data });
     state.root = result.root; state.site = result.site; state.connection = result.connection || { type: 'local' };
+    state.gitSelectedPaths = new Set(); state.gitFeedback = ''; state.gitLoading = false; state.gitRequest = null; state.commandTask = null; state.commandInfo = null; state.commandError = ''; state.commandRequest = null; clearTimeout(state.commandPoll);
     state.git = null; state.configFiles = null; state.configScreen = 'list'; state.configListPrefs = null; state.config = null; state.configBuffer = null; state.configDirty = false; state.configSaveError = false;
     state.current = null; state.editorDirty = false; state.contentKind = 'post'; state.lists = {};
     state.posts = []; state.drafts = []; state.pages = []; state.commandLog = '';
@@ -593,6 +691,37 @@ async function openPost(path, kind = 'post', skipGuard = false) {
   } catch (error) { if (active()) toast(error.message, 'error'); }
   finally { if (state.contentRequest === request) state.contentRequest = null; }
 }
+function reviewSaveConflict(kind) {
+  const root = state.root;
+  if (kind === 'config') {
+    const config = state.config, mine = $('#config-editor').value;
+    return SaveConflicts.open({
+      label: config.scope, base: config.content, mine: async () => mine,
+      current: () => state.root === root && state.view === 'config' && state.config === config && $('#config-editor')?.value === mine,
+      read: () => api('config', { params: { scope: config.scope } }),
+      prepare: async content => ({ content }),
+      apply(latest, merged) {
+        state.config = latest; state.configBuffer = merged.content; state.configDirty = merged.content !== latest.content;
+        state.configSaveError = false; state.configErrorMessage = ''; configPage();
+      }
+    });
+  }
+  const post = state.current, mine = $('#editor').value;
+  const values = JSON.stringify(state.metadataValues), edits = metadataEdits();
+  return SaveConflicts.open({
+    label: post.path, base: post.content,
+    mine: async () => (await api('article-fields', { method: 'POST', data: { content: mine, metadata: edits, metadataOnly: true } })).content,
+    current: () => state.root === root && state.view === 'editor' && state.current === post && $('#editor')?.value === mine && JSON.stringify(state.metadataValues) === values,
+    read: () => api('post', { params: { path: post.path, kind: post.kind } }),
+    prepare: content => api('article-fields', { method: 'POST', data: { content, metadataOnly: true } }),
+    apply(latest, merged) {
+      state.current = latest; state.editorBuffer = merged.content; state.editorBaseModified = latest.modified;
+      state.metadataBase = metadataValues(merged.meta); state.metadataValues = { ...state.metadataBase };
+      state.editorDirty = merged.content !== latest.content; state.editorSelection = { start: 0, end: 0 };
+      editorPage(); if (state.editorDirty) saveDraft(); else clearDraft(post.path, post.kind);
+    }
+  });
+}
 async function savePost() {
   if (!state.current || state.saving) return false;
   if (state.uploading) { toast(t("图片正在上传，完成后再保存")); return false; }
@@ -623,7 +752,7 @@ async function savePost() {
     if (previewActive) document.querySelector('[data-editor-tab="preview"]').click();
     toast(refreshError ? t`已保存，列表刷新失败：${refreshError.message}` : updated.kind === 'draft' ? t("草稿已保存") : updated.kind === 'page' ? t("页面已保存") : t("文章已保存"));
     return true;
-  } catch (error) { toast(error.message, 'error'); return false; }
+  } catch (error) { saveDraft(); toast(error.message, 'error'); if (error.status === 409) void reviewSaveConflict('post'); return false; }
   finally { state.saving = false; if ($('#editor') === editor) { editor.readOnly = false; $('#save-post').disabled = false; document.querySelectorAll('[data-meta]').forEach(input => input.disabled = false); } }
 }
 async function requestPublish(path) {
@@ -745,7 +874,7 @@ async function saveConfig() {
     config.content = content; config.modified = result.modified;
     state.configBuffer = content; state.configDirty = false;
     toast(t("配置已保存"));
-  } catch (error) { state.configSaveError = true; state.configErrorMessage = error.message; toast(error.message, 'error'); }
+  } catch (error) { state.configSaveError = true; state.configErrorMessage = error.message; toast(error.message, 'error'); if (error.status === 409) void reviewSaveConflict('config'); }
   finally {
     state.configSaving = false;
     if (button.isConnected) { button.disabled = false; editor.readOnly = false; $('#reload-config').disabled = false; updateConfigStatus(); }
@@ -756,11 +885,16 @@ function appendCommandLog(text) {
   const terminal = $('#terminal');
   if (terminal) { terminal.textContent = state.commandLog; terminal.scrollTop = terminal.scrollHeight; }
 }
-async function runCommand(action) {
+async function runCommand(action, confirmed = false) {
   if (state.busy) return toast(t("已有命令正在运行"));
   if (state.gitBusy) return toast(t("Git 操作正在进行，请稍候"));
-  if (action === 'deploy' && !window.confirm(t("将按当前 Hexo 配置部署博客，确定继续？"))) return;
-  state.busy = true; state.commandLog = `$ hexo ${action}\n`; deployPage();
+  if (['deploy', 'generate-deploy'].includes(action) && confirmed !== true) {
+    if (!modal(`<h2 id="modal-title">${t(action === 'generate-deploy' ? '生成并部署' : '仅部署现有文件')}</h2><p>${t(action === 'generate-deploy' ? '将先生成最新站点，再按当前 Hexo 配置部署，确定继续？' : '将部署现有生成文件，不会重新生成，确定继续？')}</p><div class="actions"><button id="command-confirm-cancel" class="secondary">${t('取消')}</button><button id="command-confirm-run" class="primary">${t('开始执行')}</button></div>`)) return;
+    $('#command-confirm-cancel').onclick = closeModal;
+    $('#command-confirm-run').onclick = () => { closeModal(); runCommand(action, true); };
+    return;
+  }
+  state.busy = true; state.commandStreaming = true; state.commandTask = null; state.commandError = ''; state.commandLog = `$ hexo ${action}\n`; deployPage();
   let exitCode = null;
   try {
     const response = await fetch('/api/command', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': state.csrf || '' }, body: JSON.stringify({ action }) });
@@ -769,7 +903,9 @@ async function runCommand(action) {
     const consume = line => {
       if (!line.trim()) return;
       const item = JSON.parse(line);
-      if (item.type === 'exit') { exitCode = item.code; appendCommandLog(t`\n进程结束，退出码 ${item.code}\n`); }
+      if (item.type === 'task') { state.commandTask = item.task; state.commandLog = item.task.log || ''; if (state.view === 'deploy') deployPage(); }
+      else if (item.type === 'step') { if (state.commandTask) state.commandTask.step = item.step; if (state.view === 'deploy') updateCommandStatus(); }
+      else if (item.type === 'exit') { exitCode = item.code; if (state.commandTask) Object.assign(state.commandTask, { status: item.status || (item.code === 0 ? 'succeeded' : 'failed'), code: item.code, finishedAt: Date.now() }); appendCommandLog(t`\n进程结束，退出码 ${item.code}\n`); }
       else appendCommandLog(item.text || '');
     };
     while (true) {
@@ -779,9 +915,10 @@ async function runCommand(action) {
       if (done) { if (pending) consume(pending); break; }
     }
     if (exitCode === null) throw new Error(t("连接已中断，未收到命令完成结果，请检查日志"));
-    toast(exitCode === 0 ? t("Hexo 命令执行完成") : t`命令未成功，退出码 ${exitCode}，请查看日志`, exitCode === 0 ? 'success' : 'error');
+    if (state.commandTask?.status === 'cancelled') toast(t('任务已停止'));
+    else toast(exitCode === 0 ? t("Hexo 命令执行完成") : t`命令未成功，退出码 ${exitCode}，请查看日志`, exitCode === 0 ? 'success' : 'error');
   } catch (error) { appendCommandLog(t`\n错误：${error.message}\n`); toast(error.message, 'error'); }
-  finally { state.busy = false; if (state.view === 'deploy' && $('#terminal')) deployPage(); }
+  finally { state.commandStreaming = false; state.busy = false; if (state.view === 'deploy' && $('#terminal')) deployPage(); await loadDeploy(); }
 }
 async function navigate(view) {
   if (state.gitBusy) { toast(t("Git 操作正在进行，请稍候")); return; }
@@ -793,6 +930,7 @@ async function navigate(view) {
   if (view === 'config') return loadConfigs();
   state.view = view;
   if (view === 'git') { render(); return loadGit(); }
+  if (view === 'deploy' && !state.cloud) { render(); return loadDeploy(); }
   render();
 }
 document.addEventListener('click', event => { const view = event.target.closest('[data-view]'); if (view) navigate(view.dataset.view); const open = event.target.closest('[data-open]'); if (open) openPost(open.dataset.open, open.dataset.kind || 'post'); const deletion = event.target.closest('[data-delete]'); if (deletion) confirmDelete(deletion.dataset.delete, deletion.dataset.kind || 'post'); const publish = event.target.closest('[data-publish]'); if (publish) requestPublish(publish.dataset.publish); });
@@ -980,6 +1118,7 @@ function showAuth(configured) {
   DisplayPreferences.place();
 }
 async function loadWorkspace() {
+  state.gitSelectedPaths = new Set(); state.gitFeedback = ''; state.gitLoading = false; state.gitRequest = null; state.commandTask = null; state.commandInfo = null; state.commandError = ''; state.commandRequest = null; if (typeof clearTimeout === 'function') clearTimeout(state.commandPoll);
   const status = await api('status');
   if (state.root !== status.root) { state.configFiles = null; state.config = null; state.configScreen = 'list'; state.configListPrefs = null; }
   state.root = status.root;
@@ -1163,7 +1302,7 @@ document.addEventListener('hexostudio:language', () => {
   document.getElementById(active)?.focus({ preventScroll: true });
 });
 
-window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.modalBusy || state.busy || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('beforeunload', event => { if (state.editorDirty || state.configDirty || state.saving || state.configSaving || state.modalBusy || (state.busy && !state.commandTask?.id) || state.gitBusy || state.uploading || state.connecting) { if (state.editorDirty) saveDraft(); event.preventDefault(); event.returnValue = ''; } });
 (async () => {
   try {
     await BrandUI.load();

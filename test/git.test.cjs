@@ -111,3 +111,33 @@ test('staging uses literal Git paths for filenames with pattern characters', asy
   assert.equal(result.changes.find(item => item.path === 'source/_posts/p.md').staged, false);
   assert.match((await git.diff(root, 'source/_posts/[post].md', 'staged')).content, /Bracket filename/);
 });
+
+test('initial repositories can unstage without losing files and first push sets the upstream', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-first-push-')); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const repo = path.join(root, 'blog'), bare = path.join(root, 'remote.git'); fs.mkdirSync(repo);
+  command(root, 'init', '--bare', bare); command(repo, 'init', '-b', 'main');
+  command(repo, 'config', 'user.name', 'Test'); command(repo, 'config', 'user.email', 'test@example.invalid');
+  fs.writeFileSync(path.join(repo, 'file.md'), 'First\n');
+  await git.stage(repo, ['file.md']); await git.unstage(repo, 'file.md');
+  assert.equal(fs.readFileSync(path.join(repo, 'file.md'), 'utf8'), 'First\n');
+  let status = await git.status(repo); assert.equal(status.hasHead, false); assert.equal(status.commits.length, 0);
+  await git.stage(repo, ['file.md']); await git.commit(repo, 'First | 中文 subject');
+  command(repo, 'remote', 'add', 'origin', bare);
+  status = await git.status(repo); assert.equal(status.upstream, ''); assert.equal(status.commits[0].subject, 'First | 中文 subject');
+  status = await git.sync(repo, null, 'push'); assert.equal(status.upstream, 'origin/main');
+  assert.equal(status.commits[0].hash, command(repo, 'rev-parse', 'HEAD')); assert.ok(Number.isFinite(status.commits[0].timestamp));
+});
+test('merge conflicts are explicitly identified instead of treated as normal staged changes', () => {
+  const changes = git.parseStatus('UU conflict.md\0 M post.md\0?? new.md\0');
+  assert.equal(changes[0].conflicted, true); assert.equal(changes[1].conflicted, false); assert.equal(changes[2].conflicted, false);
+});
+test('unstaging a rename restores both index paths and preserves the renamed working file', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'hs-rename-')); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  command(root, 'init', '-b', 'main'); command(root, 'config', 'user.name', 'Test'); command(root, 'config', 'user.email', 'test@example.invalid');
+  fs.writeFileSync(path.join(root, 'before.md'), 'same content\n'); command(root, 'add', '.'); command(root, 'commit', '-m', 'initial');
+  command(root, 'mv', 'before.md', 'after.md');
+  const status = await git.status(root); assert.equal(status.changes[0].originalPath, 'before.md');
+  assert.match((await git.diff(root, 'after.md', 'staged')).content, /rename from before.md/);
+  const unstaged = await git.unstage(root, 'after.md'); assert.equal(unstaged.changes.some(item => item.staged), false);
+  assert.equal(fs.readFileSync(path.join(root, 'after.md'), 'utf8'), 'same content\n');
+});

@@ -7,6 +7,15 @@ const core = require('./core.cjs');
 const { renderPreview } = require('./preview.cjs');
 const assets = require('./assets.cjs');
 const git = require('./git.cjs');
+const commands = require('./commands.cjs');
+const commandRunner = commands.createRunner();
+process.once('exit', () => commandRunner.shutdown());
+let gitMutation = false;
+async function mutateGit(action) {
+  if (gitMutation || commandRunner.running()) throw Object.assign(new Error('Git 或 Hexo 任务正在运行，请稍候'), { status: 409 });
+  gitMutation = true;
+  try { return await action(); } finally { gitMutation = false; }
+}
 const { brandingRecord, brandingMutation } = require('./branding.cjs');
 const ai = require('./ai.cjs');
 const network = require('./network.cjs');
@@ -78,7 +87,7 @@ function sameOrigin(req) {
 }
 function staticFile(req, res, pathname) {
   const name = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'network.js': 'text/javascript', 'article-fields.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
+  const types = { 'index.html': 'text/html', 'app.js': 'text/javascript', 'editor-tools.js': 'text/javascript', 'save-conflicts.js': 'text/javascript', 'mobile.js': 'text/javascript', 'ai.js': 'text/javascript', 'network.js': 'text/javascript', 'article-fields.js': 'text/javascript', 'i18n.js': 'text/javascript', 'preferences.js': 'text/javascript', 'branding.js': 'text/javascript', 'style.css': 'text/css', 'favicon.svg': 'image/svg+xml', 'favicon.ico': 'image/x-icon', 'favicon-32.png': 'image/png', 'icon-192.png': 'image/png', 'apple-touch-icon.png': 'image/png' };
   Object.assign(types, require('../public/preview-assets.json').files, { 'rich-preview.js': 'text/javascript', 'diagram-preview.html': 'text/html', 'diagram-preview.js': 'text/javascript', 'diagram-preview.css': 'text/css' });
   if (!Object.hasOwn(types, name)) return send(res, 404, { error: '未找到页面' });
   res.writeHead(200, {
@@ -188,6 +197,7 @@ async function handle(req, res) {
       return send(res, 200, { root, configured: Boolean(root), site: root ? core.siteInfo(root) : null, connection: connection?.type === 'remote' && root ? { type: 'remote', provider: connection.provider, repository: connection.repository, branch: connection.branch, blogPath: connection.blogPath, hasToken: Boolean(connection.token) } : { type: 'local' }, mode: process.env.HEXOSTUDIO_DESKTOP ? 'desktop' : 'web' });
     }
     if (req.method === 'POST' && url.pathname === '/api/project') {
+      if (gitMutation || commandRunner.running()) throw Object.assign(new Error('Git 或 Hexo 任务正在运行，请稍候'), { status: 409 });
       if (process.env.HEXO_ROOT) throw new Error('项目目录由 HEXO_ROOT 环境变量指定');
       const data = await body(req);
       const root = core.validateProject(data.path);
@@ -195,6 +205,7 @@ async function handle(req, res) {
       return send(res, 200, { root, site: core.siteInfo(root) });
     }
     if (req.method === 'POST' && url.pathname === '/api/remote/connect') {
+      if (gitMutation || commandRunner.running()) throw Object.assign(new Error('Git 或 Hexo 任务正在运行，请稍候'), { status: 409 });
       if (process.env.HEXO_ROOT) throw new Error('项目目录由 HEXO_ROOT 环境变量指定');
       const connection = git.remoteInput(await body(req));
       const { root, repoDir } = await git.connectRemote(settingsFile, connection);
@@ -207,18 +218,18 @@ async function handle(req, res) {
     if (req.method === 'GET' && url.pathname === '/api/git/diff') return send(res, 200, await git.diff(root, url.searchParams.get('path'), url.searchParams.get('area')));
     if (req.method === 'POST' && url.pathname === '/api/git/stage') {
       const data = await body(req);
-      return send(res, 200, await git.stage(root, data.paths, loadSettings().connection));
+      return send(res, 200, await mutateGit(() => git.stage(root, data.paths, loadSettings().connection)));
     }
     if (req.method === 'POST' && url.pathname === '/api/git/unstage') {
       const data = await body(req);
-      return send(res, 200, await git.unstage(root, data.path, loadSettings().connection));
+      return send(res, 200, await mutateGit(() => git.unstage(root, data.path, loadSettings().connection)));
     }
     if (req.method === 'POST' && url.pathname === '/api/git/commit') {
       const data = await body(req);
-      return send(res, 200, await git.commit(root, data.message, loadSettings().connection));
+      return send(res, 200, await mutateGit(() => git.commit(root, data.message, loadSettings().connection)));
     }
     if (req.method === 'POST' && ['/api/git/fetch', '/api/git/pull', '/api/git/push'].includes(url.pathname)) {
-      return send(res, 200, await git.sync(root, loadSettings().connection, url.pathname.split('/').pop()));
+      return send(res, 200, await mutateGit(() => git.sync(root, loadSettings().connection, url.pathname.split('/').pop())));
     }
     if (req.method === 'POST' && url.pathname === '/api/preview') {
       const data = await body(req);
@@ -265,14 +276,26 @@ async function handle(req, res) {
       fs.writeFileSync(file, data.content);
       return send(res, 200, { modified: fs.statSync(file).mtime.toISOString() });
     }
+    if (req.method === 'GET' && url.pathname === '/api/command/status') {
+      return send(res, 200, { task: commandRunner.current(root), ...commands.inspect(root) });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/command/cancel') {
+      const data = await body(req);
+      return send(res, 200, { task: commandRunner.cancel(root, data.id) });
+    }
     if (req.method === 'POST' && url.pathname === '/api/command') {
       const data = await body(req);
-      if (!['clean', 'generate', 'deploy'].includes(data.action)) throw new Error('不支持的命令');
-      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-      const child = core.runHexo(root, data.action, (type, chunk) => res.write(JSON.stringify({ type, text: chunk }) + '\n'));
-      child.on('error', error => { if (res.writableEnded || res.destroyed) return; res.write(JSON.stringify({ type: 'stderr', text: error.message }) + '\n'); res.end(); });
-      child.on('close', code => { if (res.writableEnded || res.destroyed) return; res.write(JSON.stringify({ type: 'exit', code }) + '\n'); res.end(); });
-      res.on('close', () => { if (!res.writableEnded) child.kill(); });
+      if (!['clean', 'generate', 'deploy', 'generate-deploy'].includes(data.action)) throw new Error('不支持的命令');
+      if (gitMutation || commandRunner.running()) throw Object.assign(new Error('Git 或 Hexo 任务正在运行，请稍候'), { status: 409 });
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'X-Accel-Buffering': 'no', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+      const subscription = commandRunner.start(root, data.action, item => {
+        if (res.writableEnded || res.destroyed) return;
+        if (res.writableLength > 512_000) { res.destroy(); return; }
+        res.write(JSON.stringify(item) + '\n');
+        if (item.type === 'exit') res.end();
+      });
+      // The task survives browser refresh; only disconnect the log subscriber.
+      res.on('close', subscription.unsubscribe);
       return;
     }
     return send(res, 404, { error: '接口不存在' });

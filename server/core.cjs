@@ -258,11 +258,18 @@ function listConfigs(root) {
 
 function runHexo(root, action, onData) {
   if (!['clean', 'generate', 'deploy'].includes(action)) throw new Error('不支持的命令');
-  const bin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'hexo.cmd' : 'hexo');
-  if (!fs.existsSync(bin)) throw new Error('项目中未找到 Hexo，请先在博客目录执行 npm install');
-  const child = spawn(bin, [action], { cwd: root, env: process.env, shell: process.platform === 'win32' });
-  child.stdout.on('data', chunk => onData('stdout', chunk.toString()));
-  child.stderr.on('data', chunk => onData('stderr', chunk.toString()));
+  const entry = path.join(root, 'node_modules', 'hexo', 'bin', 'hexo');
+  if (!fs.existsSync(entry)) throw new Error('项目中未找到 Hexo，请先在博客目录执行 npm install');
+  // Run the JS entry directly, including in Electron. No cmd.exe or shell quoting.
+  const child = spawn(process.execPath, [entry, action], { cwd: root,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32' });
+  const { StringDecoder } = require('node:string_decoder');
+  for (const type of ['stdout', 'stderr']) {
+    const decoder = new StringDecoder('utf8');
+    child[type].on('data', chunk => onData(type, decoder.write(chunk)));
+    child[type].on('end', () => { const tail = decoder.end(); if (tail) onData(type, tail); });
+  }
   return child;
 }
 

@@ -26,7 +26,7 @@ async function verify() {
     const names = packed.files.map(file => file.path);
     const previewAssets = require('../public/preview-assets.json').files;
     for (const name of ['public/preview-assets.json', 'public/rich-preview.js', 'public/diagram-preview.html', ...Object.keys(previewAssets).map(name => `public/${name}`)]) assert.ok(names.includes(name), `Missing preview asset: ${name}`);
-    for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'public/index.html', 'public/app.js', 'public/favicon.svg', 'public/favicon.ico', 'public/favicon-32.png', 'public/icon-192.png', 'public/apple-touch-icon.png', 'LICENSE', 'README.md', 'CHANGELOG.md', 'package.json']) {
+    for (const required of ['bin/hs.cjs', 'server/cli.cjs', 'server/index.cjs', 'server/commands.cjs', 'public/index.html', 'public/app.js', 'public/editor-tools.js', 'public/save-conflicts.js', 'public/favicon.svg', 'public/favicon.ico', 'public/favicon-32.png', 'public/icon-192.png', 'public/apple-touch-icon.png', 'LICENSE', 'README.md', 'CHANGELOG.md', 'package.json']) {
       assert.ok(names.includes(required), `Missing package file: ${required}`);
     }
     for (const name of names) {

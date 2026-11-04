@@ -52,3 +52,19 @@ test('local saves persist reviewed custom metadata through the existing conflict
   const saved=core.savePost(root,post.path,prepared.content,post.modified,{},'draft');
   assert.equal(header(saved.content).cover,'/images/cover.jpg');assert.equal(header(saved.content).top_img,false);assert.equal(saved.meta.title,'Edited title');
 });
+
+test('conflict review materializes sidebar metadata without altering unrelated front matter',()=>{
+  const original='---\ntitle: Old\ncover: /keep.png\ncustom: &a keep\ncopy: *a\n---\n\nBody';
+  const result=transform({content:original,metadataOnly:true,metadata:{title:'New title',tags:['one','two']}});
+  assert.match(result.content,/title: "New title"/);assert.match(result.content,/cover: \/keep.png\ncustom: &a keep\ncopy: \*a/);
+  assert.equal(result.meta.title,'New title');assert.deepEqual(result.meta.tags,['one','two']);
+  assert.equal(transform({content:result.content,metadataOnly:true}).content,result.content);
+  assert.throws(()=>transform({content:5,metadataOnly:true}),/文章内容/);
+});
+
+test('conflict review supports local article sizes beyond the custom-fields editor limit',()=>{
+  const original='x'.repeat(1_000_001);
+  assert.throws(()=>transform({content:original}),/1 MB/);
+  assert.equal(transform({content:original,metadataOnly:true}).content,original);
+  assert.throws(()=>transform({content:'x'.repeat(5_000_001),metadataOnly:true}),/5 MB/);
+});

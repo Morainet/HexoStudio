@@ -175,3 +175,10 @@ test('closing account storage while it loads prevents a late response reopening 
   assert.equal(f.$('#modal').classList.contains('hidden'),true);
   assert.equal(f.state.dialogVersion,version);
 });
+
+test('an unsaved modal can prevent normal closing while expiry still forces closure',()=>{
+  const f=fixture();f.ctx.modal.beforeClose=()=>false;
+  f.ctx.closeModal();assert.equal(f.$('#modal').classList.contains('hidden'),false);
+  f.ctx.closeModal(true);assert.equal(f.$('#modal').classList.contains('hidden'),true);
+  f.ctx.modal('<h2>New dialog</h2>');assert.equal(f.ctx.modal.beforeClose,null);
+});

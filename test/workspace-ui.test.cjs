@@ -73,7 +73,7 @@ test('command stream handles split UTF-8 and final record without newline', asyn
   const bytes=Buffer.from('{"type":"stdout","text":"构建中"}\n{"type":"exit","code":0}');
   const chunks=[bytes.subarray(0,28),bytes.subarray(28,30),bytes.subarray(30)];
   const ctx=load('function appendCommandLog(', 'async function navigate(', {
-    $,state,TextDecoder,toast:(...args)=>notices.push(args),deployPage:()=>{},
+    $,state,TextDecoder,toast:(...args)=>notices.push(args),deployPage:()=>{},loadDeploy:async()=>{},
     fetch:async()=>({ok:true,body:{getReader:()=>({read:async()=>chunks.length?{value:chunks.shift(),done:false}:{done:true}})}})
   });
   await ctx.runCommand('generate');
@@ -83,7 +83,7 @@ test('command stream handles split UTF-8 and final record without newline', asyn
 test('lost command stream reports uncertainty instead of a successful build', async () => {
   const $ = ui(); const state={view:'deploy'}; const notices=[];
   const ctx=load('function appendCommandLog(', 'async function navigate(', {
-    $,state,TextDecoder,toast:(...args)=>notices.push(args),deployPage:()=>{},
+    $,state,TextDecoder,toast:(...args)=>notices.push(args),deployPage:()=>{},loadDeploy:async()=>{},
     fetch:async()=>({ok:true,body:{getReader:()=>({read:async()=>({done:true})})}})
   });
   await ctx.runCommand('generate');
@@ -241,4 +241,21 @@ test('a slow configuration editor cannot reopen after returning to the list', as
   const list = ctx.loadConfigs(); requests[1].resolve({files:[]}); await list;
   requests[0].resolve({scope:'site',content:'stale'}); assert.equal(await editor, false);
   assert.equal(state.configScreen, 'list'); assert.equal(state.config, null);
+});
+
+test('article save conflicts preserve the buffer and version and open review only on 409',async()=>{
+  for(const status of [409,500]) {
+    const $=ui(), reviews=[], state={current:{path:'a.md',kind:'post',content:'base'},editorBuffer:'mine',editorBaseModified:'v1',editorDirty:true};
+    $('#editor').value='mine';const ctx=load('async function savePost()', 'async function requestPublish(', {
+      $,state,document:{querySelector:()=>null,querySelectorAll:()=>[]},metadataEdits:()=>({}),saveDraft(){},toast(){},
+      reviewSaveConflict:kind=>reviews.push(kind),api:async()=>{throw Object.assign(new Error('conflict'),{status});}
+    });
+    assert.equal(await ctx.savePost(),false);assert.equal(state.editorBuffer,'mine');assert.equal(state.editorBaseModified,'v1');assert.equal(state.editorDirty,true);
+    assert.equal($('#editor').readOnly,false);assert.deepEqual(reviews,status===409?['post']:[]);
+  }
+});
+test('configuration save conflicts open review while retaining pending edits',async()=>{
+  const $=ui(),reviews=[],state={config:{scope:'site',content:'base',modified:'v1'},configBuffer:'mine',configDirty:true};$('#config-editor').value='mine';
+  const ctx=load('function updateConfigStatus()', 'function appendCommandLog(',{$,state,toast(){},reviewSaveConflict:kind=>reviews.push(kind),api:async()=>{throw Object.assign(new Error('conflict'),{status:409});}});
+  await ctx.saveConfig();assert.deepEqual(reviews,['config']);assert.equal(state.configBuffer,'mine');assert.equal(state.config.modified,'v1');assert.equal(state.configDirty,true);
 });

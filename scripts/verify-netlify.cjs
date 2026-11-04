@@ -23,7 +23,7 @@ try {
       assert.equal(html.status,200);assert.match(await html.text(),/HexoStudio/);
       const script=await entry.default(new Request('https://studio.example/app.js'));
       assert.match(script.headers.get('content-type'),/javascript/);
-      for(const asset of ['diagram-preview.html','vendor/mermaid/mermaid.min.js','vendor/katex/katex.min.css','vendor/katex/fonts/KaTeX_Main-Regular.woff2']) {
+      for(const asset of ['editor-tools.js','save-conflicts.js','diagram-preview.html','vendor/mermaid/mermaid.min.js','vendor/katex/katex.min.css','vendor/katex/fonts/KaTeX_Main-Regular.woff2']) {
         const result=await entry.default(new Request('https://studio.example/'+asset,{method:'HEAD'}));assert.equal(result.status,200,asset);
       }
       const health=await entry.default(new Request('https://studio.example/api/health'));
