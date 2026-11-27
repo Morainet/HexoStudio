@@ -21,7 +21,7 @@ function cloudConfig(env = process.env) {
   }))];
   // All aliases use the same cookie security policy as the primary origin.
   if (origins.some(origin => new URL(origin).protocol !== new URL(origins[0]).protocol)) throw new Error('HEXOSTUDIO_ORIGIN 中的访问地址必须使用相同协议');
-  return { storage, secret:env.HEXOSTUDIO_SECRET, setupKey:env.HEXOSTUDIO_SETUP_KEY, origin:origins[0], origins };
+  return { storage, secret:env.HEXOSTUDIO_SECRET, setupKey:env.HEXOSTUDIO_SETUP_KEY, cronSecret:env.CRON_SECRET, origin:origins[0], origins };
 }
 function codec(secret) {
   const key = Buffer.from(secret, 'hex');

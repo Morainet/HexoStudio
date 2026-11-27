@@ -10,5 +10,6 @@
       "includeFiles": "public/**"
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/entry" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/entry" }],
+  "crons": [{ "path": "/api/cron/database-keepalive", "schedule": "0 3 * * *" }]
 }

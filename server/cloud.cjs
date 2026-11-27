@@ -5,6 +5,7 @@ const {RemoteRepository}=require('./remote-repository.cjs');
 const {CloudContent}=require('./cloud-content.cjs');
 const {renderPreview}=require('./preview.cjs');
 const ai=require('./ai.cjs');
+const {timingSafeEqual}=require('node:crypto');
 function createCloudHandler({config=cloudConfig(),store=createCloudStore(config),repository=connection=>new RemoteRepository(connection),checkUpdates=require('./updates.cjs').checkBrandUpdates,aiTransport=ai.completion}={}){
   const auth=new CloudAuth(store,config);
   const allowedOrigins=new Set(config.origins || [config.origin]);
@@ -18,6 +19,16 @@ function createCloudHandler({config=cloudConfig(),store=createCloudStore(config)
     try{
       const url=new URL(req.url,config.origin), route=url.pathname;
       if(route==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,mode:'cloud'});
+      if(route==='/api/cron/database-keepalive'){
+        if(req.method!=='GET')return send(res,405,{error:'不支持的请求方法'},{Allow:'GET'});
+        if(typeof config.cronSecret!=='string'||config.cronSecret.length<32)throw failure('数据库保活未启用，请配置至少 32 字符的 CRON_SECRET',503);
+        const expected=Buffer.from(`Bearer ${config.cronSecret}`),provided=Buffer.from(typeof req.headers.authorization==='string'?req.headers.authorization:'');
+        if(expected.length!==provided.length||!timingSafeEqual(expected,provided))throw failure('定时任务验证失败',401);
+        // A real database read creates connection activity even without a logged-in user.
+        // Do not change shared revisions, sessions or repository content, or return state.
+        try{await store.read();}catch{throw failure('数据库保活检查失败，请检查数据库连接及集群状态',503);}
+        return send(res,200,{ok:true,checkedAt:new Date().toISOString()});
+      }
       if(!route.startsWith('/api/')&&!route.startsWith('/images/hexostudio/')){if(req.method!=='GET'&&req.method!=='HEAD')throw failure('不支持的请求方法',405);return staticFile(req,res,route);}
       if(req.method!=='GET' && !allowedOrigins.has(req.headers.origin))throw failure('跨站请求被拒绝',403);
       const data=await store.read();const session=auth.session(data,req);

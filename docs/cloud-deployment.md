@@ -32,6 +32,7 @@
 | `HEXOSTUDIO_ORIGIN` | 是 | 后台访问地址，不带路径；多个域名用英文逗号分隔，第一个为主地址 |
 | `HEXOSTUDIO_SECRET` | 是 | 64 位十六进制随机密钥，用于加密数据库内容 |
 | `HEXOSTUDIO_SETUP_KEY` | 是 | 至少 32 字符的独立随机密钥，用于首次创建管理员 |
+| `CRON_SECRET` | 启用数据库保活时 | 至少 32 字符的独立随机密钥；Vercel 定时请求会自动携带该密钥 |
 | `HEXOSTUDIO_DATABASE_NAME` | 否 | MongoDB 数据库名；默认从 URI 读取 |
 | `HEXOSTUDIO_HOST` | 常驻服务 | 设为 `0.0.0.0`；Docker 已设置，函数入口无需设置 |
 | `PORT` | 常驻服务 | 使用平台分配的端口；`HEXOSTUDIO_PORT` 和 `--port` 优先级更高 |
@@ -122,6 +123,23 @@ node --env-file=.env.cloud bin/hs.cjs start --host 0.0.0.0
 ```
 
 `GET /api/health` 是进程存活检查，不检查数据库与仓库。`hs doctor` 在云端模式只验证环境变量格式，不连接数据库；实际数据库连通性由进入配置页面的请求验证。
+
+### MongoDB 免费集群防闲置暂停
+
+Atlas 免费集群连续 30 天没有连接活动会自动暂停。仓库的 `vercel.json` 已配置每天一次的数据库保活任务：`GET /api/cron/database-keepalive`，计划时间为 UTC 03:00（北京时间 11:00；Hobby 套餐可能在该小时内执行）。任务使用与后台相同的数据库配置，实际读取云端状态并关闭连接，不更改已有状态、会话或博客内容。普通 `/api/health` 检查不会产生数据库活动，不能替代此任务。
+
+启用步骤：
+
+1. 如果集群已经暂停，先在 Atlas 手动 Resume，等恢复后再启用任务；保活接口无法唤醒已暂停集群。
+2. 生成独立密钥：`node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`。
+3. 在 Vercel 项目的 **Production** 环境变量中设置 `CRON_SECRET`，使用刚生成的值，不要复用加密密钥或初始化密钥。
+4. 将包含此配置的代码部署到生产环境。在项目的 **Cron Jobs** 页面确认任务存在，点击 **Run** 测试，并查看日志中的 HTTP 状态。
+
+成功返回 `200` 和 `{ "ok": true, "checkedAt": "…" }`；缺少或过短的服务端密钥返回 `503`，请求密钥无效返回 `401`，数据库访问失败返回 `503`。响应禁止缓存，也不会返回账号、仓库凭据或数据库内容。
+
+Vercel Cron 只在生产部署运行，本地开发和预览部署不会自动执行。其他平台可配置每天一次的外部定时请求，发送 `Authorization: Bearer <CRON_SECRET>` 请求头；不要将密钥放进 URL。持续成功的数据库连接用于避免闲置暂停；若任务被禁用、长期失败或应用停用，仍可能暂停。需在 Vercel Cron 日志中检查失败任务。
+
+参考：[Atlas 免费集群限制](https://www.mongodb.com/docs/atlas/reference/free-shared-limitations/)、[Vercel Cron 管理与密钥验证](https://vercel.com/docs/cron-jobs/manage-cron-jobs)。
 
 ## 3. 首次配置
 
